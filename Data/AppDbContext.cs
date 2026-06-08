@@ -50,6 +50,7 @@ public class AppDbContext
                 BarPrefixo VARCHAR(10) DEFAULT '', BarSufixo VARCHAR(10) DEFAULT '', BarZerosEsquerda INT DEFAULT 0,
                 RfidAtivo INT DEFAULT 1, RfidBanco INT DEFAULT 0,
                 RfidTamanhoBits INT DEFAULT 96, RfidEncodingTipo INT DEFAULT 0, RfidPrefixo VARCHAR(20) DEFAULT '',
+                RfidImprimirValor INT DEFAULT 0, RfidValorX INT DEFAULT 50, RfidValorY INT DEFAULT 50, RfidValorTam INT DEFAULT 40,
                 LogoImprimir INT DEFAULT 0, LogoArquivo VARCHAR(600) DEFAULT '',
                 LogoX INT DEFAULT 0, LogoY INT DEFAULT 0, LogoLargura INT DEFAULT 30, LogoAltura INT DEFAULT 30,
                 Intervalo INT DEFAULT 30, Quantidade INT DEFAULT 1, Velocidade INT DEFAULT 3, Densidade INT DEFAULT 7
@@ -65,6 +66,10 @@ public class AppDbContext
 
         // Migração: adiciona colunas novas se o banco já existia sem elas
         AddColumnIfMissing(conn, "Etiquetas", "DefinirTamanho", "INT DEFAULT 0");
+        AddColumnIfMissing(conn, "Etiquetas", "RfidImprimirValor", "INT DEFAULT 0");
+        AddColumnIfMissing(conn, "Etiquetas", "RfidValorX", "INT DEFAULT 50");
+        AddColumnIfMissing(conn, "Etiquetas", "RfidValorY", "INT DEFAULT 50");
+        AddColumnIfMissing(conn, "Etiquetas", "RfidValorTam", "INT DEFAULT 40");
         AddColumnIfMissing(conn, "Parametros", "TipoConexao", "INT DEFAULT 0");
         AddColumnIfMissing(conn, "Parametros", "ImpressoraIp", "VARCHAR(50) DEFAULT '192.168.1.100'");
         AddColumnIfMissing(conn, "Parametros", "ImpressoraPorta", "INT DEFAULT 9100");
@@ -113,12 +118,13 @@ public class AppDbContext
                     BarTipo,BarCodX,BarCodY,BarAltura,BarEspessura,BarImprimir,BarImprimirCodigo,BarFonteTam,
                     BarPrefixo,BarSufixo,BarZerosEsquerda,
                     RfidAtivo,RfidBanco,RfidTamanhoBits,RfidEncodingTipo,RfidPrefixo,
+                    RfidImprimirValor,RfidValorX,RfidValorY,RfidValorTam,
                     LogoImprimir,LogoArquivo,LogoX,LogoY,LogoLargura,LogoAltura,
                     Intervalo,Quantidade,Velocidade,Densidade)
                 VALUES ($modelo,$ex,$ey,$lmm,$amm,$dt,
                     $t1,$t1x,$t1y,$t1s,$t2,$t2x,$t2y,$t2s,$t3,$t3x,$t3y,$t3s,$t4,$t4x,$t4y,$t4s,
                     $bt,$bcx,$bcy,$ba,$be,$bi,$bic,$bft,$bp,$bs,$bz,
-                    $ra,$rb,$rtb,$ret,$rp,$li,$la,$lx,$ly,$ll,$lal,
+                    $ra,$rb,$rtb,$ret,$rp,$riv,$rvx,$rvy,$rvt,$li,$la,$lx,$ly,$ll,$lal,
                     $int,$qtd,$vel,$den);
                 SELECT last_insert_rowid();";
         }
@@ -134,6 +140,7 @@ public class AppDbContext
                     BarImprimir=$bi,BarImprimirCodigo=$bic,BarFonteTam=$bft,
                     BarPrefixo=$bp,BarSufixo=$bs,BarZerosEsquerda=$bz,
                     RfidAtivo=$ra,RfidBanco=$rb,RfidTamanhoBits=$rtb,RfidEncodingTipo=$ret,RfidPrefixo=$rp,
+                    RfidImprimirValor=$riv,RfidValorX=$rvx,RfidValorY=$rvy,RfidValorTam=$rvt,
                     LogoImprimir=$li,LogoArquivo=$la,LogoX=$lx,LogoY=$ly,LogoLargura=$ll,LogoAltura=$lal,
                     Intervalo=$int,Quantidade=$qtd,Velocidade=$vel,Densidade=$den
                 WHERE Id=$id;
@@ -234,6 +241,10 @@ public class AppDbContext
         RfidTamanhoBits = r.GetInt32(r.GetOrdinal("RfidTamanhoBits")),
         RfidEncodingTipo = r.GetInt32(r.GetOrdinal("RfidEncodingTipo")),
         RfidPrefixo = r.GetString(r.GetOrdinal("RfidPrefixo")),
+        RfidImprimirValor = r.GetInt32(r.GetOrdinal("RfidImprimirValor")) == 1,
+        RfidValorX = r.GetInt32(r.GetOrdinal("RfidValorX")),
+        RfidValorY = r.GetInt32(r.GetOrdinal("RfidValorY")),
+        RfidValorTam = r.GetInt32(r.GetOrdinal("RfidValorTam")),
         LogoImprimir = r.GetInt32(r.GetOrdinal("LogoImprimir")) == 1,
         LogoArquivo = r.GetString(r.GetOrdinal("LogoArquivo")),
         LogoX = r.GetInt32(r.GetOrdinal("LogoX")),
@@ -265,6 +276,7 @@ public class AppDbContext
         cmd.Parameters.AddWithValue("$bp", e.BarPrefixo); cmd.Parameters.AddWithValue("$bs", e.BarSufixo); cmd.Parameters.AddWithValue("$bz", e.BarZerosEsquerda);
         cmd.Parameters.AddWithValue("$ra", e.RfidAtivo ? 1 : 0); cmd.Parameters.AddWithValue("$rb", e.RfidBanco);
         cmd.Parameters.AddWithValue("$rtb", e.RfidTamanhoBits); cmd.Parameters.AddWithValue("$ret", e.RfidEncodingTipo); cmd.Parameters.AddWithValue("$rp", e.RfidPrefixo);
+        cmd.Parameters.AddWithValue("$riv", e.RfidImprimirValor ? 1 : 0); cmd.Parameters.AddWithValue("$rvx", e.RfidValorX); cmd.Parameters.AddWithValue("$rvy", e.RfidValorY); cmd.Parameters.AddWithValue("$rvt", e.RfidValorTam);
         cmd.Parameters.AddWithValue("$li", e.LogoImprimir ? 1 : 0); cmd.Parameters.AddWithValue("$la", e.LogoArquivo);
         cmd.Parameters.AddWithValue("$lx", e.LogoX); cmd.Parameters.AddWithValue("$ly", e.LogoY); cmd.Parameters.AddWithValue("$ll", e.LogoLargura); cmd.Parameters.AddWithValue("$lal", e.LogoAltura);
         cmd.Parameters.AddWithValue("$int", e.Intervalo); cmd.Parameters.AddWithValue("$qtd", e.Quantidade);

@@ -156,6 +156,12 @@ public class SatoPrinterService
             sb.Append($"^RFW,H,2,{words},1^FD{result.HexData}^FS");
         }
 
+        // === Valor do RFID impresso como texto ===
+        if (t.RfidImprimirValor && !string.IsNullOrWhiteSpace(dadoRfid))
+        {
+            AppendTexto(sb, t.RfidPrefixo + dadoRfid, t.RfidValorX, t.RfidValorY, t.RfidValorTam);
+        }
+
         // === Textos ===
         AppendTexto(sb, t.Texto1, t.Texto1X, t.Texto1Y, t.Texto1Tam);
         AppendTexto(sb, t.Texto2, t.Texto2X, t.Texto2Y, t.Texto2Tam);
@@ -200,6 +206,11 @@ public class SatoPrinterService
         {
             sb.Append($"^FO{t.LogoX},{t.LogoY}^XG{t.LogoArquivo},1,1^FS");
         }
+
+        // Ponto de registro (1 dot) — presente no template original.
+        // Garante que a etiqueta seja processada/alimentada mesmo numa
+        // etiqueta que só grava RFID (sem texto/código visível).
+        sb.Append("^FO0,0^GB1,1,1^FS");
 
         // Fim
         sb.Append("^XZ");

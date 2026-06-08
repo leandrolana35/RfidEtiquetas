@@ -56,6 +56,12 @@ public class Etiqueta
     public int RfidEncodingTipo { get; set; }  // 0=ASCII 1=Hex direto
     public string RfidPrefixo { get; set; } = "";
 
+    // Imprimir o valor gravado no RFID como texto visível na etiqueta
+    public bool RfidImprimirValor { get; set; }
+    public int RfidValorX { get; set; } = 50;
+    public int RfidValorY { get; set; } = 50;
+    public int RfidValorTam { get; set; } = 40;
+
     // Logo
     public bool LogoImprimir { get; set; }
     public string LogoArquivo { get; set; } = "";
