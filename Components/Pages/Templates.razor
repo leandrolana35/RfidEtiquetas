@@ -1,0 +1,351 @@
+@page "/templates"
+@page "/templates/{Id:int}"
+@inject AppDbContext Db
+@inject NavigationManager Nav
+
+<PageTitle>Modelos de Etiqueta</PageTitle>
+
+@if (_editando)
+{
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Cancelar"><i class="bi bi-arrow-left"></i></button>
+        <h5 class="mb-0">@(_modelo.Id == 0 ? "Novo modelo" : $"Editando: {_modelo.Modelo}")</h5>
+    </div>
+
+    <div class="row g-3">
+        <!-- Geral -->
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white">Identificação e Tamanho</div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label small">Nome do modelo</label>
+                            <input class="form-control" @bind="_modelo.Modelo" placeholder="Ex: Produto Padrão" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Largura (mm)</label>
+                            <input type="number" class="form-control" @bind="_modelo.LarguraMm" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Altura (mm)</label>
+                            <input type="number" class="form-control" @bind="_modelo.AlturaMm" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Velocidade (1-10)</label>
+                            <input type="number" class="form-control" min="1" max="10" @bind="_modelo.Velocidade" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Densidade (1-15)</label>
+                            <input type="number" class="form-control" min="1" max="15" @bind="_modelo.Densidade" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Textos -->
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white">Textos (até 4 linhas)</div>
+                <div class="card-body">
+                    @for (int i = 1; i <= 4; i++)
+                    {
+                        int idx = i;
+                        <div class="row g-2 mb-2 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label small">Texto @idx</label>
+                                <input class="form-control" value="@GetTexto(idx)" @onchange="e => SetTexto(idx, e.Value?.ToString())" placeholder="Deixe vazio para não imprimir" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">X (dots)</label>
+                                <input type="number" class="form-control" value="@GetTextoX(idx)" @onchange="e => SetTextoX(idx, int.Parse(e.Value?.ToString() ?? "0"))" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Y (dots)</label>
+                                <input type="number" class="form-control" value="@GetTextoY(idx)" @onchange="e => SetTextoY(idx, int.Parse(e.Value?.ToString() ?? "0"))" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Tamanho fonte</label>
+                                <input type="number" class="form-control" value="@GetTextoTam(idx)" @onchange="e => SetTextoTam(idx, int.Parse(e.Value?.ToString() ?? "12"))" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Código de barras -->
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-dark text-white">Código de Barras</div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small">Tipo</label>
+                            <select class="form-select" @bind="_modelo.BarTipo">
+                                <option value="1">Code 128</option>
+                                <option value="2">EAN-13</option>
+                                <option value="3">Code 39</option>
+                                <option value="4">QR Code</option>
+                                <option value="5">Code 93</option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label small">X</label>
+                            <input type="number" class="form-control" @bind="_modelo.BarCodX" />
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label small">Y</label>
+                            <input type="number" class="form-control" @bind="_modelo.BarCodY" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Altura (dots)</label>
+                            <input type="number" class="form-control" @bind="_modelo.BarAltura" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Espessura</label>
+                            <input type="number" class="form-control" @bind="_modelo.BarEspessura" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Zeros à esq.</label>
+                            <input type="number" class="form-control" @bind="_modelo.BarZerosEsquerda" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Prefixo</label>
+                            <input class="form-control" @bind="_modelo.BarPrefixo" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Sufixo</label>
+                            <input class="form-control" @bind="_modelo.BarSufixo" />
+                        </div>
+                        <div class="col-12 d-flex gap-3 mt-1">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="_modelo.BarImprimir" id="barImp" />
+                                <label class="form-check-label small" for="barImp">Imprimir barcode</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="_modelo.BarImprimirCodigo" id="barCodImp" />
+                                <label class="form-check-label small" for="barCodImp">Imprimir código</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RFID -->
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-success text-white">
+                    <i class="bi bi-wifi me-1"></i>Gravação RFID
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="_modelo.RfidAtivo" id="rfidAtivo" />
+                                <label class="form-check-label" for="rfidAtivo">Gravar tag RFID</label>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Banco de memória</label>
+                            <select class="form-select" @bind="_modelo.RfidBanco" disabled="@(!_modelo.RfidAtivo)">
+                                <option value="0">EPC (padrão)</option>
+                                <option value="1">User Memory</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Tamanho EPC (bits)</label>
+                            <select class="form-select" @bind="_modelo.RfidTamanhoBits" disabled="@(!_modelo.RfidAtivo)">
+                                <option value="96">96 bits (12 chars ASCII)</option>
+                                <option value="128">128 bits (16 chars ASCII)</option>
+                                <option value="192">192 bits (24 chars ASCII)</option>
+                                <option value="256">256 bits (32 chars ASCII)</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Encoding</label>
+                            <select class="form-select" @bind="_modelo.RfidEncodingTipo" disabled="@(!_modelo.RfidAtivo)">
+                                <option value="0">ASCII (texto/números)</option>
+                                <option value="1">Hex direto</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Prefixo fixo</label>
+                            <input class="form-control" @bind="_modelo.RfidPrefixo" disabled="@(!_modelo.RfidAtivo)" placeholder="Opcional" />
+                        </div>
+                        <div class="col-12">
+                            <div class="alert alert-info py-2 small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Para dados com texto+números acima de 12 chars, selecione 128 bits ou mais.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logo -->
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white">Logo</div>
+                <div class="card-body">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-auto">
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" @bind="_modelo.LogoImprimir" id="logoImp" />
+                                <label class="form-check-label" for="logoImp">Imprimir logo</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Arquivo de imagem</label>
+                            <input class="form-control" @bind="_modelo.LogoArquivo" disabled="@(!_modelo.LogoImprimir)" placeholder="C:\imagens\logo.bmp" />
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label small">X</label>
+                            <input type="number" class="form-control" @bind="_modelo.LogoX" disabled="@(!_modelo.LogoImprimir)" />
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label small">Y</label>
+                            <input type="number" class="form-control" @bind="_modelo.LogoY" disabled="@(!_modelo.LogoImprimir)" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Largura (mm)</label>
+                            <input type="number" class="form-control" @bind="_modelo.LogoLargura" disabled="@(!_modelo.LogoImprimir)" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Altura (mm)</label>
+                            <input type="number" class="form-control" @bind="_modelo.LogoAltura" disabled="@(!_modelo.LogoImprimir)" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ações -->
+        <div class="col-12 d-flex gap-2">
+            <button class="btn btn-warning" @onclick="Salvar">
+                <i class="bi bi-check-lg me-1"></i>Salvar modelo
+            </button>
+            <button class="btn btn-outline-secondary" @onclick="Cancelar">Cancelar</button>
+            @if (_modelo.Id > 0)
+            {
+                <button class="btn btn-outline-danger ms-auto" @onclick="Excluir">
+                    <i class="bi bi-trash me-1"></i>Excluir
+                </button>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(_mensagem))
+        {
+            <div class="col-12">
+                <div class="alert @(_erro ? "alert-danger" : "alert-success") py-2">@_mensagem</div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Modelos de Etiqueta</h5>
+        <button class="btn btn-warning" @onclick="Novo">
+            <i class="bi bi-plus-lg me-1"></i>Novo modelo
+        </button>
+    </div>
+
+    @if (_lista.Count == 0)
+    {
+        <div class="text-center text-muted py-5">
+            <i class="bi bi-inbox fs-1"></i>
+            <p class="mt-2">Nenhum modelo cadastrado. Clique em "Novo modelo" para começar.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var e in _lista)
+            {
+                <div class="col-md-4">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">@e.Modelo</h6>
+                            <div class="small text-muted">
+                                <span><i class="bi bi-rulers me-1"></i>@e.LarguraMm × @e.AlturaMm mm</span><br />
+                                <span><i class="bi bi-wifi me-1"></i>RFID: @(e.RfidAtivo ? $"{e.RfidTamanhoBits} bits" : "desativado")</span><br />
+                                <span><i class="bi bi-upc-scan me-1"></i>Barcode: @NomeBarcode(e.BarTipo)</span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => Editar(e.Id)">
+                                <i class="bi bi-pencil"></i> Editar
+                            </button>
+                            <a href="imprimir?modeloId=@e.Id" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-printer"></i> Imprimir
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private List<RfidEtiquetas.Data.Models.Etiqueta> _lista = [];
+    private RfidEtiquetas.Data.Models.Etiqueta _modelo = new();
+    private bool _editando;
+    private string _mensagem = "";
+    private bool _erro;
+
+    protected override void OnInitialized()
+    {
+        _lista = Db.GetEtiquetas();
+        if (Id > 0) Editar(Id);
+    }
+
+    private void Novo() { _modelo = new(); _editando = true; _mensagem = ""; }
+
+    private void Editar(int id)
+    {
+        var e = Db.GetEtiqueta(id);
+        if (e != null) { _modelo = e; _editando = true; _mensagem = ""; }
+    }
+
+    private void Cancelar() { _editando = false; _lista = Db.GetEtiquetas(); _mensagem = ""; }
+
+    private void Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_modelo.Modelo))
+        {
+            _mensagem = "O nome do modelo é obrigatório."; _erro = true; return;
+        }
+        Db.SaveEtiqueta(_modelo);
+        _mensagem = "Modelo salvo com sucesso!"; _erro = false;
+        _lista = Db.GetEtiquetas();
+    }
+
+    private void Excluir()
+    {
+        Db.DeleteEtiqueta(_modelo.Id);
+        Cancelar();
+    }
+
+    private string NomeBarcode(int tipo) => tipo switch
+    {
+        1 => "Code 128", 2 => "EAN-13", 3 => "Code 39", 4 => "QR Code", _ => "Code 128"
+    };
+
+    // Helpers for indexed text fields
+    private string GetTexto(int i) => i switch { 1 => _modelo.Texto1, 2 => _modelo.Texto2, 3 => _modelo.Texto3, _ => _modelo.Texto4 };
+    private int GetTextoX(int i) => i switch { 1 => _modelo.Texto1X, 2 => _modelo.Texto2X, 3 => _modelo.Texto3X, _ => _modelo.Texto4X };
+    private int GetTextoY(int i) => i switch { 1 => _modelo.Texto1Y, 2 => _modelo.Texto2Y, 3 => _modelo.Texto3Y, _ => _modelo.Texto4Y };
+    private int GetTextoTam(int i) => i switch { 1 => _modelo.Texto1Tam, 2 => _modelo.Texto2Tam, 3 => _modelo.Texto3Tam, _ => _modelo.Texto4Tam };
+
+    private void SetTexto(int i, string? v) { var s = v ?? ""; switch (i) { case 1: _modelo.Texto1 = s; break; case 2: _modelo.Texto2 = s; break; case 3: _modelo.Texto3 = s; break; default: _modelo.Texto4 = s; break; } }
+    private void SetTextoX(int i, int v) { switch (i) { case 1: _modelo.Texto1X = v; break; case 2: _modelo.Texto2X = v; break; case 3: _modelo.Texto3X = v; break; default: _modelo.Texto4X = v; break; } }
+    private void SetTextoY(int i, int v) { switch (i) { case 1: _modelo.Texto1Y = v; break; case 2: _modelo.Texto2Y = v; break; case 3: _modelo.Texto3Y = v; break; default: _modelo.Texto4Y = v; break; } }
+    private void SetTextoTam(int i, int v) { switch (i) { case 1: _modelo.Texto1Tam = v; break; case 2: _modelo.Texto2Tam = v; break; case 3: _modelo.Texto3Tam = v; break; default: _modelo.Texto4Tam = v; break; } }
+}

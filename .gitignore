@@ -1,0 +1,13 @@
+# Build
+bin/
+obj/
+
+# Banco de dados local (cada PC tem o seu)
+Banco.db
+Banco.db-shm
+Banco.db-wal
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user

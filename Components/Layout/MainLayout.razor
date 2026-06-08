@@ -1,0 +1,42 @@
+@inherits LayoutComponentBase
+
+<div class="d-flex" style="min-height:100vh">
+    <nav class="sidebar d-flex flex-column p-3 text-white" style="width:220px;background:#1a2332;min-height:100vh">
+        <div class="mb-4 mt-2">
+            <span class="fs-5 fw-bold text-warning">AfixRFID</span>
+            <div class="text-muted small">Etiquetas RFID</div>
+        </div>
+        <ul class="nav flex-column gap-1">
+            <li class="nav-item">
+                <NavLink class="nav-link text-white rounded" href="" Match="NavLinkMatch.All">
+                    <i class="bi bi-house me-2"></i>Início
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white rounded" href="templates">
+                    <i class="bi bi-layout-text-sidebar me-2"></i>Modelos
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white rounded" href="imprimir">
+                    <i class="bi bi-printer me-2"></i>Imprimir
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white rounded" href="configuracoes">
+                    <i class="bi bi-gear me-2"></i>Configurações
+                </NavLink>
+            </li>
+        </ul>
+        <div class="mt-auto small text-muted">v2.0 — Sato C4LX</div>
+    </nav>
+
+    <main class="flex-fill p-4 bg-light">
+        @Body
+    </main>
+</div>
+
+<style>
+    .nav-link:hover { background: rgba(255,255,255,.1) !important; }
+    .nav-link.active { background: rgba(255,193,7,.2) !important; color: #ffc107 !important; }
+</style>

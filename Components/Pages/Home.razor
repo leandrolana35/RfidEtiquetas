@@ -1,0 +1,78 @@
+@page "/"
+@inject AppDbContext Db
+
+<PageTitle>AfixRFID Etiquetas</PageTitle>
+
+<h4 class="mb-4">Painel</h4>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="bg-warning bg-opacity-25 rounded p-3">
+                    <i class="bi bi-layout-text-sidebar fs-2 text-warning"></i>
+                </div>
+                <div>
+                    <div class="fs-3 fw-bold">@_totalModelos</div>
+                    <div class="text-muted">Modelos cadastrados</div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent border-0">
+                <a href="templates" class="btn btn-sm btn-outline-warning">Gerenciar modelos</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="bg-primary bg-opacity-25 rounded p-3">
+                    <i class="bi bi-printer fs-2 text-primary"></i>
+                </div>
+                <div>
+                    <div class="fs-5 fw-semibold">Imprimir etiqueta</div>
+                    <div class="text-muted small">Sato C4LX via porta COM</div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent border-0">
+                <a href="imprimir" class="btn btn-sm btn-outline-primary">Ir para impressão</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="bg-success bg-opacity-25 rounded p-3">
+                    <i class="bi bi-wifi fs-2 text-success"></i>
+                </div>
+                <div>
+                    <div class="fs-5 fw-semibold">RFID</div>
+                    <div class="text-muted small">EPC 96–256 bits</div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent border-0">
+                <a href="configuracoes" class="btn btn-sm btn-outline-success">Configurar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4 p-3 bg-white rounded shadow-sm">
+    <h6 class="text-muted mb-2"><i class="bi bi-info-circle me-1"></i>Novidades v2.0</h6>
+    <ul class="mb-0 small">
+        <li>Correção: gravação RFID com texto+números acima de 14 caracteres</li>
+        <li>Suporte a EPC de 96, 128, 192 e 256 bits</li>
+        <li>Escolha do banco de memória: EPC ou User Memory</li>
+        <li>Interface web — acesse pelo navegador em <strong>localhost:5050</strong></li>
+    </ul>
+</div>
+
+@code {
+    private int _totalModelos;
+
+    protected override void OnInitialized()
+    {
+        _totalModelos = Db.GetEtiquetas().Count;
+    }
+}
