@@ -54,6 +54,75 @@ public class SatoPrinterService
         }
     }
 
+    public record ResultadoLote(bool Sucesso, int Impressos, int Total, string? Erro);
+
+    /// <summary>
+    /// Imprime/grava uma lista de itens em lote, reutilizando uma única conexão.
+    /// Cada item: (codigoBarras, dadoRfid). onProgresso é chamado a cada etiqueta.
+    /// </summary>
+    public ResultadoLote ImprimirLote(
+        Etiqueta template,
+        List<(string CodigoBarras, string DadoRfid)> itens,
+        Parametros conexao,
+        Action<int>? onProgresso = null)
+    {
+        // Cada etiqueta do lote é impressa uma vez
+        template.Quantidade = 1;
+        int feitos = 0;
+
+        try
+        {
+            if (conexao.TipoConexao == 1)
+            {
+                using var cliente = new TcpClient();
+                if (!cliente.ConnectAsync(conexao.ImpressoraIp, conexao.ImpressoraPorta).Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException($"Não foi possível conectar em {conexao.ImpressoraIp}:{conexao.ImpressoraPorta}.");
+                using var stream = cliente.GetStream();
+                foreach (var item in itens)
+                {
+                    var zpl = MontarZpl(template, item.CodigoBarras, item.DadoRfid, out _);
+                    var bytes = Encoding.ASCII.GetBytes(zpl);
+                    stream.Write(bytes, 0, bytes.Length);
+                    stream.Flush();
+                    feitos++;
+                    onProgresso?.Invoke(feitos);
+                    PausarEntreEtiquetas(template.Intervalo);
+                }
+            }
+            else
+            {
+                using var porta = new SerialPort(conexao.PortaCom, conexao.BaudRate, Parity.None, 8, StopBits.One)
+                {
+                    WriteTimeout = 5000,
+                    Handshake = Handshake.XOnXOff
+                };
+                porta.Open();
+                foreach (var item in itens)
+                {
+                    var zpl = MontarZpl(template, item.CodigoBarras, item.DadoRfid, out _);
+                    var bytes = Encoding.ASCII.GetBytes(zpl);
+                    porta.Write(bytes, 0, bytes.Length);
+                    feitos++;
+                    onProgresso?.Invoke(feitos);
+                    PausarEntreEtiquetas(template.Intervalo);
+                }
+                porta.Close();
+            }
+
+            return new(true, feitos, itens.Count, null);
+        }
+        catch (Exception ex)
+        {
+            return new(false, feitos, itens.Count, ex.Message);
+        }
+    }
+
+    private static void PausarEntreEtiquetas(int intervaloMs)
+    {
+        if (intervaloMs > 0)
+            Thread.Sleep(Math.Min(intervaloMs, 5000));
+    }
+
     private static void EnviarPorCom(byte[] bytes, string portaCom, int baudRate)
     {
         using var porta = new SerialPort(portaCom, baudRate, Parity.None, 8, StopBits.One)

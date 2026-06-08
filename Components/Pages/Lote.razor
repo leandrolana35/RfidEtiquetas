@@ -1,0 +1,323 @@
+@page "/lote"
+@inject AppDbContext Db
+@inject LoteService LoteSvc
+@inject SatoPrinterService Printer
+@using RfidEtiquetas.Data.Models
+
+<PageTitle>Imprimir em Lote</PageTitle>
+
+<h5 class="mb-3">Imprimir / Gravar em Lote</h5>
+
+<div class="row g-3">
+    <div class="col-md-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-dark text-white">1. Modelo e impressora</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Modelo de etiqueta</label>
+                    <select class="form-select" @bind="_modeloId" @bind:after="OnModeloChanged">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var e in _modelos)
+                        {
+                            <option value="@e.Id">@e.Modelo</option>
+                        }
+                    </select>
+                </div>
+                <div class="small text-muted">
+                    @if (_params.TipoConexao == 1)
+                    {
+                        <i class="bi bi-ethernet me-1"></i><span>Rede — @_params.ImpressoraIp:@_params.ImpressoraPorta</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-usb-symbol me-1"></i><span>USB — @_params.PortaCom</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mt-3">
+            <div class="card-header bg-dark text-white">2. Origem dos códigos</div>
+            <div class="card-body">
+                <ul class="nav nav-pills mb-3">
+                    <li class="nav-item">
+                        <button class="nav-link @(_modo == 0 ? "active" : "")" @onclick="() => _modo = 0">
+                            <i class="bi bi-123 me-1"></i>Gerar sequência
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link @(_modo == 1 ? "active" : "")" @onclick="() => _modo = 1">
+                            <i class="bi bi-file-earmark-excel me-1"></i>Importar planilha
+                        </button>
+                    </li>
+                </ul>
+
+                @if (_modo == 0)
+                {
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small">Valor inicial</label>
+                            <input type="number" class="form-control" @bind="_seqInicio" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Quantidade</label>
+                            <input type="number" class="form-control" @bind="_seqQtd" min="1" max="100000" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Incremento</label>
+                            <input type="number" class="form-control" @bind="_seqInc" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Nº de dígitos</label>
+                            <input type="number" class="form-control" @bind="_seqDigitos" min="0" />
+                        </div>
+                        <div class="col-4 d-flex align-items-end">
+                            <span class="small text-muted">0 = sem zeros</span>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Prefixo</label>
+                            <input class="form-control" @bind="_seqPrefixo" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Sufixo</label>
+                            <input class="form-control" @bind="_seqSufixo" />
+                        </div>
+                        <div class="col-12 mt-2">
+                            <button class="btn btn-outline-primary w-100" @onclick="GerarSequencia">
+                                <i class="bi bi-list-ol me-1"></i>Gerar lista
+                            </button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label small">Arquivo (.xlsx, .xls ou .csv)</label>
+                            <InputFile class="form-control" OnChange="CarregarArquivo" accept=".xlsx,.xls,.csv" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Coluna dos códigos</label>
+                            <select class="form-select" @bind="_coluna">
+                                <option value="0">Coluna A (1ª)</option>
+                                <option value="1">Coluna B (2ª)</option>
+                                <option value="2">Coluna C (3ª)</option>
+                                <option value="3">Coluna D (4ª)</option>
+                            </select>
+                        </div>
+                        <div class="col-6 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="_temCabecalho" id="cab" />
+                                <label class="form-check-label small" for="cab">1ª linha é cabeçalho</label>
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_arquivoNome))
+                        {
+                            <div class="col-12">
+                                <button class="btn btn-outline-primary w-100" @onclick="RecarregarArquivo">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Reprocessar "@_arquivoNome"
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(_msgOrigem))
+                {
+                    <div class="alert @(_erroOrigem ? "alert-danger" : "alert-info") py-2 mt-2 mb-0 small">@_msgOrigem</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <span>3. Lista de códigos</span>
+                @if (_lista.Count > 0)
+                {
+                    <span class="badge bg-warning text-dark">@_lista.Count códigos</span>
+                }
+            </div>
+            <div class="card-body">
+                @if (_lista.Count == 0)
+                {
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-list-ul fs-1"></i>
+                        <p>Gere uma sequência ou importe uma planilha</p>
+                    </div>
+                }
+                else
+                {
+                    <div style="max-height:240px;overflow:auto" class="border rounded mb-3">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead class="sticky-top bg-light">
+                                <tr><th style="width:50px">#</th><th>Código (RFID + impresso)</th></tr>
+                            </thead>
+                            <tbody>
+                                @for (int i = 0; i < _lista.Count && i < 500; i++)
+                                {
+                                    <tr><td class="text-muted">@(i + 1)</td><td class="font-monospace">@_lista[i]</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                        @if (_lista.Count > 500)
+                        {
+                            <div class="small text-muted p-2">... e mais @(_lista.Count - 500) (todos serão impressos)</div>
+                        }
+                    </div>
+
+                    @if (_imprimindo)
+                    {
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span>Imprimindo...</span>
+                                <span>@_progresso / @_lista.Count</span>
+                            </div>
+                            <div class="progress" style="height:20px">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark"
+                                     style="width:@(_lista.Count > 0 ? (_progresso * 100 / _lista.Count) : 0)%">
+                                    @(_lista.Count > 0 ? (_progresso * 100 / _lista.Count) : 0)%
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <button class="btn btn-warning w-100" @onclick="ImprimirLote" disabled="@(_modeloId == 0 || _imprimindo)">
+                        @if (_imprimindo)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Imprimindo @_progresso de @_lista.Count...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-printer me-2"></i>
+                            <span>Imprimir/gravar @_lista.Count etiquetas</span>
+                        }
+                    </button>
+
+                    @if (!string.IsNullOrEmpty(_resultado))
+                    {
+                        <div class="alert @(_resultadoErro ? "alert-danger" : "alert-success") py-2 mt-2 mb-0">@_resultado</div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Etiqueta> _modelos = [];
+    private Parametros _params = new();
+    private int _modeloId;
+
+    private int _modo; // 0 = sequência, 1 = arquivo
+
+    // Sequência
+    private long _seqInicio = 1;
+    private int _seqQtd = 10;
+    private int _seqInc = 1;
+    private int _seqDigitos = 6;
+    private string _seqPrefixo = "";
+    private string _seqSufixo = "";
+
+    // Arquivo
+    private int _coluna;
+    private bool _temCabecalho = true;
+    private string _arquivoNome = "";
+    private byte[]? _arquivoBytes;
+
+    private List<string> _lista = [];
+    private string _msgOrigem = "";
+    private bool _erroOrigem;
+
+    private bool _imprimindo;
+    private int _progresso;
+    private string _resultado = "";
+    private bool _resultadoErro;
+
+    protected override void OnInitialized()
+    {
+        _modelos = Db.GetEtiquetas();
+        _params = Db.GetParametros();
+    }
+
+    private void OnModeloChanged() { }
+
+    private void GerarSequencia()
+    {
+        _resultado = "";
+        _lista = LoteSvc.GerarSequencia(_seqInicio, _seqQtd, _seqInc, _seqDigitos, _seqPrefixo, _seqSufixo);
+        _msgOrigem = $"{_lista.Count} códigos gerados.";
+        _erroOrigem = false;
+    }
+
+    private async Task CarregarArquivo(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            _arquivoNome = e.File.Name;
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024).CopyToAsync(ms);
+            _arquivoBytes = ms.ToArray();
+            ProcessarArquivo();
+        }
+        catch (Exception ex)
+        {
+            _erroOrigem = true;
+            _msgOrigem = $"Erro ao ler arquivo: {ex.Message}";
+        }
+    }
+
+    private void RecarregarArquivo() => ProcessarArquivo();
+
+    private void ProcessarArquivo()
+    {
+        if (_arquivoBytes == null) return;
+        _resultado = "";
+        try
+        {
+            using var ms = new MemoryStream(_arquivoBytes);
+            bool csv = _arquivoNome.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+            _lista = csv
+                ? LoteSvc.LerColunaCsv(ms, _coluna, _temCabecalho)
+                : LoteSvc.LerColunaExcel(ms, _coluna, _temCabecalho);
+
+            _erroOrigem = _lista.Count == 0;
+            _msgOrigem = _lista.Count == 0
+                ? "Nenhum código encontrado nessa coluna. Confira a coluna e o cabeçalho."
+                : $"{_lista.Count} códigos importados de \"{_arquivoNome}\".";
+        }
+        catch (Exception ex)
+        {
+            _erroOrigem = true;
+            _msgOrigem = $"Erro ao processar: {ex.Message}";
+        }
+    }
+
+    private async Task ImprimirLote()
+    {
+        var modelo = Db.GetEtiqueta(_modeloId);
+        if (modelo == null || _lista.Count == 0) return;
+
+        _imprimindo = true;
+        _progresso = 0;
+        _resultado = "";
+        StateHasChanged();
+
+        var itens = _lista.Select(c => (CodigoBarras: c, DadoRfid: c)).ToList();
+
+        var resultado = await Task.Run(() =>
+            Printer.ImprimirLote(modelo, itens, _params, feitos =>
+            {
+                _progresso = feitos;
+                InvokeAsync(StateHasChanged);
+            }));
+
+        _imprimindo = false;
+        _resultadoErro = !resultado.Sucesso;
+        _resultado = resultado.Sucesso
+            ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
+            : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
+    }
+}

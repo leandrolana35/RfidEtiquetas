@@ -10,6 +10,7 @@ builder.Services.AddSingleton<AppDbContext>();
 builder.Services.AddSingleton<RfidEncoderService>();
 builder.Services.AddSingleton<BarcodeService>();
 builder.Services.AddSingleton<SatoPrinterService>();
+builder.Services.AddSingleton<LoteService>();
 
 var app = builder.Build();
 
