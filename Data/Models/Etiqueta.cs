@@ -11,6 +11,10 @@ public class Etiqueta
     public int LarguraMm { get; set; } = 100;
     public int AlturaMm { get; set; } = 50;
 
+    // Se false (padrão): NÃO envia ^PW/^LL — usa a calibração física da impressora.
+    // Evita sobrescrever o passo (pitch) já calibrado no aparelho.
+    public bool DefinirTamanho { get; set; }
+
     // Text fields (up to 4)
     public string Texto1 { get; set; } = "";
     public int Texto1X { get; set; }

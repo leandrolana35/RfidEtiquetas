@@ -39,6 +39,15 @@
                             <label class="form-label small">Densidade (1-15)</label>
                             <input type="number" class="form-control" min="1" max="15" @bind="_modelo.Densidade" />
                         </div>
+                        <div class="col-12">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" @bind="_modelo.DefinirTamanho" id="defTam" />
+                                <label class="form-check-label small" for="defTam">
+                                    Enviar dimensões/velocidade/densidade para a impressora
+                                    <span class="text-muted">(deixe <strong>desmarcado</strong> se a impressora já está calibrada — evita alterar o passo)</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

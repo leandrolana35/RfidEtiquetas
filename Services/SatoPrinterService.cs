@@ -6,13 +6,16 @@ using RfidEtiquetas.Data.Models;
 namespace RfidEtiquetas.Services;
 
 /// <summary>
-/// Communicates with Sato C4LX via SBPL (Sato Barcode Printer Language).
-/// Reference: Sato C4LX SBPL Programming Manual.
+/// Comunica com a impressora via ZPL (Zebra Programming Language).
+/// A Sato C4LX usada aceita ZPL — template replicado do aplicativo original.
 /// </summary>
 public class SatoPrinterService
 {
     private readonly RfidEncoderService _rfidEncoder;
-    private static readonly char ESC = '\x1B';
+
+    // Resolução da impressora em dots por mm. 203 dpi = 8 dots/mm (padrão).
+    // Se sua impressora for 305 dpi, troque para 12.
+    private const int DotsPorMm = 8;
 
     public SatoPrinterService(RfidEncoderService rfidEncoder)
     {
@@ -35,8 +38,8 @@ public class SatoPrinterService
         string? avisoRfid = null;
         try
         {
-            var sbpl = MontarSbpl(template, codigoBarras, dadoRfid, out avisoRfid);
-            var bytes = Encoding.ASCII.GetBytes(sbpl);
+            var zpl = MontarZpl(template, codigoBarras, dadoRfid, out avisoRfid);
+            var bytes = Encoding.ASCII.GetBytes(zpl);
 
             if (conexao.TipoConexao == 1)
                 EnviarPorRede(bytes, conexao.ImpressoraIp, conexao.ImpressoraPorta);
@@ -107,81 +110,99 @@ public class SatoPrinterService
 
     public string GerarSbplPreview(Etiqueta template, string codigoBarras, string dadoRfid)
     {
-        return MontarSbpl(template, codigoBarras, dadoRfid, out _);
+        return MontarZpl(template, codigoBarras, dadoRfid, out _);
     }
 
-    private string MontarSbpl(Etiqueta t, string codBarras, string dadoRfid, out string? avisoRfid)
+    /// <summary>
+    /// Monta o comando ZPL. Estrutura replicada do aplicativo original que funcionava.
+    /// </summary>
+    private string MontarZpl(Etiqueta t, string codBarras, string dadoRfid, out string? avisoRfid)
     {
         avisoRfid = null;
         var sb = new StringBuilder();
 
-        // ESC A = Start of label
-        sb.Append($"{ESC}A");
+        // Início + acentuação (UTF-8)
+        sb.Append("^XA^CI28");
 
-        // ESC CS = print speed (1-10)
-        sb.Append($"{ESC}CS{t.Velocidade:D2}");
+        // Dimensões da etiqueta — só enviadas se o usuário optar por isso.
+        // Por padrão NÃO enviamos, para não sobrescrever a calibração (passo) da impressora.
+        if (t.DefinirTamanho)
+        {
+            sb.Append($"^PW{t.LarguraMm * DotsPorMm}");
+            sb.Append($"^LL{t.AlturaMm * DotsPorMm}");
+        }
 
-        // ESC D = density (darkness 1-15)
-        sb.Append($"{ESC}D{t.Densidade:D2}");
+        sb.Append("^LH0,0^LS0,0^LT0^FWN^LRN");
 
-        // ESC L = label width in mm * 100 (e.g. 10000 = 100mm)
-        sb.Append($"{ESC}L{t.LarguraMm * 100:D5}");
+        // Quantidade (sempre). Velocidade e densidade só com a opção ligada,
+        // pois ^PR e ^MD também alteram configurações persistentes da impressora.
+        sb.Append($"^PQ{Math.Max(1, t.Quantidade)}");
+        if (t.DefinirTamanho)
+        {
+            sb.Append($"^PR{Clamp(t.Velocidade, 1, 14)}");
+            sb.Append($"^MD{Clamp(t.Densidade, 0, 30)}");
+        }
 
-        // === RFID Write ===
+        // === Gravação RFID (banco EPC) ===
         if (t.RfidAtivo && !string.IsNullOrWhiteSpace(dadoRfid))
         {
             var encoding = (RfidEncoderService.EncodingTipo)t.RfidEncodingTipo;
             var result = _rfidEncoder.Codificar(t.RfidPrefixo + dadoRfid, t.RfidTamanhoBits, encoding);
             avisoRfid = result.Aviso;
 
-            // SBPL RFID write command for C4LX:
-            // ESC XR <banco>,<bits>,<hex_data>
-            // Banco: EPC=01, User=03
-            string bancoCode = t.RfidBanco == 0 ? "01" : "03";
-            sb.Append($"{ESC}XR{bancoCode},{t.RfidTamanhoBits:D3},{result.HexData}");
+            // ^RFW,H,2,<words>,1 — Write em Hexadecimal no banco EPC.
+            // words = número de palavras de 16 bits (96 bits = 6 words).
+            int words = t.RfidTamanhoBits / 16;
+            sb.Append($"^RFW,H,2,{words},1^FD{result.HexData}^FS");
         }
 
-        // === Texts ===
+        // === Textos ===
         AppendTexto(sb, t.Texto1, t.Texto1X, t.Texto1Y, t.Texto1Tam);
         AppendTexto(sb, t.Texto2, t.Texto2X, t.Texto2Y, t.Texto2Tam);
         AppendTexto(sb, t.Texto3, t.Texto3X, t.Texto3Y, t.Texto3Tam);
         AppendTexto(sb, t.Texto4, t.Texto4X, t.Texto4Y, t.Texto4Tam);
 
-        // === Barcode ===
+        // === Código de barras ===
         if (t.BarImprimir && !string.IsNullOrWhiteSpace(codBarras))
         {
-            string barWithAfixes = t.BarPrefixo + ApplyZeroPad(codBarras, t.BarZerosEsquerda) + t.BarSufixo;
-            string barTipoCode = MapBarcodeTipo(t.BarTipo);
+            string dados = t.BarPrefixo + ApplyZeroPad(codBarras, t.BarZerosEsquerda) + t.BarSufixo;
+            string mostraTexto = t.BarImprimirCodigo ? "Y" : "N";
+            int espessura = Math.Max(1, t.BarEspessura);
 
-            // SBPL barcode: ESC BW <x>,<y>,<rotation>,<tipo>,<espessura>,<branco>,<altura>
-            sb.Append($"{ESC}BW{t.BarCodX:D4},{t.BarCodY:D4},0,{barTipoCode},{t.BarEspessura},{t.BarEspessura * 2},{t.BarAltura:D3}");
+            sb.Append($"^FO{t.BarCodX},{t.BarCodY}");
+            sb.Append($"^BY{espessura}");
 
-            if (t.BarImprimirCodigo)
+            switch (t.BarTipo)
             {
-                // Print human readable below barcode
-                // ESC FT <x>,<y>,<size> + data
-                sb.Append($"{ESC}FT{t.BarCodX:D4},{t.BarCodY + t.BarAltura + 2:D4},{t.BarFonteTam:D2}");
-                sb.Append(barWithAfixes);
-                sb.Append("\r\n");
+                case 2: // EAN-13
+                    sb.Append($"^BEN,{t.BarAltura},{mostraTexto},N");
+                    break;
+                case 3: // Code 39
+                    sb.Append($"^B3N,N,{t.BarAltura},{mostraTexto},N");
+                    break;
+                case 4: // QR Code
+                    sb.Append("^BQN,2,5");
+                    break;
+                case 5: // Code 93
+                    sb.Append($"^BAN,{t.BarAltura},{mostraTexto},N");
+                    break;
+                default: // Code 128
+                    sb.Append($"^BCN,{t.BarAltura},{mostraTexto},N,N");
+                    break;
             }
 
-            // Write barcode data — must follow BW command
-            sb.Append(barWithAfixes);
-            sb.Append("\r\n");
+            // QR Code usa prefixo de modo no ^FD
+            sb.Append(t.BarTipo == 4 ? $"^FDLA,{dados}^FS" : $"^FD{dados}^FS");
         }
 
-        // === Logo ===
-        if (t.LogoImprimir && !string.IsNullOrWhiteSpace(t.LogoArquivo) && File.Exists(t.LogoArquivo))
+        // === Logo (imagem .GRF previamente carregada na impressora) ===
+        if (t.LogoImprimir && !string.IsNullOrWhiteSpace(t.LogoArquivo))
         {
-            // ESC XP <x>,<y>,<w>,<h>,arquivo
-            sb.Append($"{ESC}XP{t.LogoX:D4},{t.LogoY:D4},{t.LogoLargura:D3},{t.LogoAltura:D3}");
+            sb.Append($"^FO{t.LogoX},{t.LogoY}^XG{t.LogoArquivo},1,1^FS");
         }
 
-        // ESC Q = quantity
-        sb.Append($"{ESC}Q{t.Quantidade:D4}");
-
-        // ESC Z = end/print
-        sb.Append($"{ESC}Z");
+        // Fim
+        sb.Append("^XZ");
 
         return sb.ToString();
     }
@@ -189,25 +210,15 @@ public class SatoPrinterService
     private static void AppendTexto(StringBuilder sb, string texto, int x, int y, int tam)
     {
         if (string.IsNullOrWhiteSpace(texto)) return;
-        char esc = '\x1B';
-        // ESC FW <x>,<y>,0,A,<size>,<size>  = WinFont text
-        sb.Append($"{esc}FW{x:D4},{y:D4},0,A,{tam:D2},{tam:D2}");
-        sb.Append(texto);
-        sb.Append("\r\n");
+        // ^FO<x>,<y>^A0N,<altura>,<largura>^FD<texto>^FS
+        sb.Append($"^FO{x},{y}^A0N,{tam},{tam}^FD{EscaparZpl(texto)}^FS");
     }
 
-    private static string MapBarcodeTipo(int tipo) => tipo switch
-    {
-        1 => "G", // Code128
-        2 => "E", // EAN-13
-        3 => "B", // Code39
-        4 => "P", // QR Code
-        5 => "A", // Code93
-        _ => "G"
-    };
+    private static string EscaparZpl(string s)
+        => s.Replace("^", " ").Replace("~", " ");
+
+    private static int Clamp(int v, int min, int max) => Math.Max(min, Math.Min(max, v));
 
     private static string ApplyZeroPad(string cod, int zeros)
-    {
-        return zeros > 0 ? cod.PadLeft(zeros, '0') : cod;
-    }
+        => zeros > 0 ? cod.PadLeft(zeros, '0') : cod;
 }

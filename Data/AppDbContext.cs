@@ -39,7 +39,7 @@ public class AppDbContext
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 Modelo VARCHAR(150) NOT NULL,
                 EtiquetaX INT DEFAULT 0, EtiquetaY INT DEFAULT 0,
-                LarguraMm INT DEFAULT 100, AlturaMm INT DEFAULT 50,
+                LarguraMm INT DEFAULT 100, AlturaMm INT DEFAULT 50, DefinirTamanho INT DEFAULT 0,
                 Texto1 VARCHAR(150) DEFAULT '', Texto1X INT DEFAULT 10, Texto1Y INT DEFAULT 5,  Texto1Tam INT DEFAULT 12,
                 Texto2 VARCHAR(150) DEFAULT '', Texto2X INT DEFAULT 10, Texto2Y INT DEFAULT 20, Texto2Tam INT DEFAULT 12,
                 Texto3 VARCHAR(150) DEFAULT '', Texto3X INT DEFAULT 10, Texto3Y INT DEFAULT 35, Texto3Tam INT DEFAULT 12,
@@ -64,6 +64,7 @@ public class AppDbContext
         ");
 
         // Migração: adiciona colunas novas se o banco já existia sem elas
+        AddColumnIfMissing(conn, "Etiquetas", "DefinirTamanho", "INT DEFAULT 0");
         AddColumnIfMissing(conn, "Parametros", "TipoConexao", "INT DEFAULT 0");
         AddColumnIfMissing(conn, "Parametros", "ImpressoraIp", "VARCHAR(50) DEFAULT '192.168.1.100'");
         AddColumnIfMissing(conn, "Parametros", "ImpressoraPorta", "INT DEFAULT 9100");
@@ -106,7 +107,7 @@ public class AppDbContext
         if (e.Id == 0)
         {
             cmd.CommandText = @"
-                INSERT INTO Etiquetas (Modelo,EtiquetaX,EtiquetaY,LarguraMm,AlturaMm,
+                INSERT INTO Etiquetas (Modelo,EtiquetaX,EtiquetaY,LarguraMm,AlturaMm,DefinirTamanho,
                     Texto1,Texto1X,Texto1Y,Texto1Tam,Texto2,Texto2X,Texto2Y,Texto2Tam,
                     Texto3,Texto3X,Texto3Y,Texto3Tam,Texto4,Texto4X,Texto4Y,Texto4Tam,
                     BarTipo,BarCodX,BarCodY,BarAltura,BarEspessura,BarImprimir,BarImprimirCodigo,BarFonteTam,
@@ -114,7 +115,7 @@ public class AppDbContext
                     RfidAtivo,RfidBanco,RfidTamanhoBits,RfidEncodingTipo,RfidPrefixo,
                     LogoImprimir,LogoArquivo,LogoX,LogoY,LogoLargura,LogoAltura,
                     Intervalo,Quantidade,Velocidade,Densidade)
-                VALUES ($modelo,$ex,$ey,$lmm,$amm,
+                VALUES ($modelo,$ex,$ey,$lmm,$amm,$dt,
                     $t1,$t1x,$t1y,$t1s,$t2,$t2x,$t2y,$t2s,$t3,$t3x,$t3y,$t3s,$t4,$t4x,$t4y,$t4s,
                     $bt,$bcx,$bcy,$ba,$be,$bi,$bic,$bft,$bp,$bs,$bz,
                     $ra,$rb,$rtb,$ret,$rp,$li,$la,$lx,$ly,$ll,$lal,
@@ -124,7 +125,7 @@ public class AppDbContext
         else
         {
             cmd.CommandText = @"
-                UPDATE Etiquetas SET Modelo=$modelo,EtiquetaX=$ex,EtiquetaY=$ey,LarguraMm=$lmm,AlturaMm=$amm,
+                UPDATE Etiquetas SET Modelo=$modelo,EtiquetaX=$ex,EtiquetaY=$ey,LarguraMm=$lmm,AlturaMm=$amm,DefinirTamanho=$dt,
                     Texto1=$t1,Texto1X=$t1x,Texto1Y=$t1y,Texto1Tam=$t1s,
                     Texto2=$t2,Texto2X=$t2x,Texto2Y=$t2y,Texto2Tam=$t2s,
                     Texto3=$t3,Texto3X=$t3x,Texto3Y=$t3y,Texto3Tam=$t3s,
@@ -200,6 +201,7 @@ public class AppDbContext
         EtiquetaY = r.GetInt32(r.GetOrdinal("EtiquetaY")),
         LarguraMm = r.GetInt32(r.GetOrdinal("LarguraMm")),
         AlturaMm = r.GetInt32(r.GetOrdinal("AlturaMm")),
+        DefinirTamanho = r.GetInt32(r.GetOrdinal("DefinirTamanho")) == 1,
         Texto1 = r.GetString(r.GetOrdinal("Texto1")),
         Texto1X = r.GetInt32(r.GetOrdinal("Texto1X")),
         Texto1Y = r.GetInt32(r.GetOrdinal("Texto1Y")),
@@ -251,6 +253,7 @@ public class AppDbContext
         cmd.Parameters.AddWithValue("$ey", e.EtiquetaY);
         cmd.Parameters.AddWithValue("$lmm", e.LarguraMm);
         cmd.Parameters.AddWithValue("$amm", e.AlturaMm);
+        cmd.Parameters.AddWithValue("$dt", e.DefinirTamanho ? 1 : 0);
         cmd.Parameters.AddWithValue("$t1", e.Texto1); cmd.Parameters.AddWithValue("$t1x", e.Texto1X); cmd.Parameters.AddWithValue("$t1y", e.Texto1Y); cmd.Parameters.AddWithValue("$t1s", e.Texto1Tam);
         cmd.Parameters.AddWithValue("$t2", e.Texto2); cmd.Parameters.AddWithValue("$t2x", e.Texto2X); cmd.Parameters.AddWithValue("$t2y", e.Texto2Y); cmd.Parameters.AddWithValue("$t2s", e.Texto2Tam);
         cmd.Parameters.AddWithValue("$t3", e.Texto3); cmd.Parameters.AddWithValue("$t3x", e.Texto3X); cmd.Parameters.AddWithValue("$t3y", e.Texto3Y); cmd.Parameters.AddWithValue("$t3s", e.Texto3Tam);
