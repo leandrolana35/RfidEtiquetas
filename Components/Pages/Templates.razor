@@ -55,19 +55,19 @@
                         <div class="row g-2 mb-2 align-items-end">
                             <div class="col-md-4">
                                 <label class="form-label small">Texto @idx</label>
-                                <input class="form-control" value="@GetTexto(idx)" @onchange="e => SetTexto(idx, e.Value?.ToString())" placeholder="Deixe vazio para não imprimir" />
+                                <input class="form-control" value="@GetTexto(idx)" @onchange="@(e => SetTexto(idx, e))" placeholder="Deixe vazio para não imprimir" />
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small">X (dots)</label>
-                                <input type="number" class="form-control" value="@GetTextoX(idx)" @onchange="e => SetTextoX(idx, int.Parse(e.Value?.ToString() ?? "0"))" />
+                                <input type="number" class="form-control" value="@GetTextoX(idx)" @onchange="@(e => SetTextoX(idx, e))" />
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small">Y (dots)</label>
-                                <input type="number" class="form-control" value="@GetTextoY(idx)" @onchange="e => SetTextoY(idx, int.Parse(e.Value?.ToString() ?? "0"))" />
+                                <input type="number" class="form-control" value="@GetTextoY(idx)" @onchange="@(e => SetTextoY(idx, e))" />
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small">Tamanho fonte</label>
-                                <input type="number" class="form-control" value="@GetTextoTam(idx)" @onchange="e => SetTextoTam(idx, int.Parse(e.Value?.ToString() ?? "12"))" />
+                                <input type="number" class="form-control" value="@GetTextoTam(idx)" @onchange="@(e => SetTextoTam(idx, e))" />
                             </div>
                         </div>
                     }
@@ -344,8 +344,11 @@ else
     private int GetTextoY(int i) => i switch { 1 => _modelo.Texto1Y, 2 => _modelo.Texto2Y, 3 => _modelo.Texto3Y, _ => _modelo.Texto4Y };
     private int GetTextoTam(int i) => i switch { 1 => _modelo.Texto1Tam, 2 => _modelo.Texto2Tam, 3 => _modelo.Texto3Tam, _ => _modelo.Texto4Tam };
 
-    private void SetTexto(int i, string? v) { var s = v ?? ""; switch (i) { case 1: _modelo.Texto1 = s; break; case 2: _modelo.Texto2 = s; break; case 3: _modelo.Texto3 = s; break; default: _modelo.Texto4 = s; break; } }
-    private void SetTextoX(int i, int v) { switch (i) { case 1: _modelo.Texto1X = v; break; case 2: _modelo.Texto2X = v; break; case 3: _modelo.Texto3X = v; break; default: _modelo.Texto4X = v; break; } }
-    private void SetTextoY(int i, int v) { switch (i) { case 1: _modelo.Texto1Y = v; break; case 2: _modelo.Texto2Y = v; break; case 3: _modelo.Texto3Y = v; break; default: _modelo.Texto4Y = v; break; } }
-    private void SetTextoTam(int i, int v) { switch (i) { case 1: _modelo.Texto1Tam = v; break; case 2: _modelo.Texto2Tam = v; break; case 3: _modelo.Texto3Tam = v; break; default: _modelo.Texto4Tam = v; break; } }
+    private static int ParseInt(ChangeEventArgs e, int padrao = 0)
+        => int.TryParse(e.Value?.ToString(), out var v) ? v : padrao;
+
+    private void SetTexto(int i, ChangeEventArgs e) { var s = e.Value?.ToString() ?? ""; switch (i) { case 1: _modelo.Texto1 = s; break; case 2: _modelo.Texto2 = s; break; case 3: _modelo.Texto3 = s; break; default: _modelo.Texto4 = s; break; } }
+    private void SetTextoX(int i, ChangeEventArgs e) { var v = ParseInt(e); switch (i) { case 1: _modelo.Texto1X = v; break; case 2: _modelo.Texto2X = v; break; case 3: _modelo.Texto3X = v; break; default: _modelo.Texto4X = v; break; } }
+    private void SetTextoY(int i, ChangeEventArgs e) { var v = ParseInt(e); switch (i) { case 1: _modelo.Texto1Y = v; break; case 2: _modelo.Texto2Y = v; break; case 3: _modelo.Texto3Y = v; break; default: _modelo.Texto4Y = v; break; } }
+    private void SetTextoTam(int i, ChangeEventArgs e) { var v = ParseInt(e, 12); switch (i) { case 1: _modelo.Texto1Tam = v; break; case 2: _modelo.Texto2Tam = v; break; case 3: _modelo.Texto3Tam = v; break; default: _modelo.Texto4Tam = v; break; } }
 }

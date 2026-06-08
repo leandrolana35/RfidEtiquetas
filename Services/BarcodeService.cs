@@ -1,7 +1,6 @@
 using SkiaSharp;
 using ZXing;
 using ZXing.Common;
-using ZXing.SkiaSharp;
 
 namespace RfidEtiquetas.Services;
 
@@ -14,7 +13,7 @@ public class BarcodeService
         try
         {
             var format = MapFormato(tipo);
-            var writer = new BarcodeWriter<SKBitmap>
+            var writer = new ZXing.SkiaSharp.BarcodeWriter
             {
                 Format = format,
                 Options = new EncodingOptions
@@ -23,8 +22,7 @@ public class BarcodeService
                     Height = altura,
                     Margin = 5,
                     PureBarcode = false
-                },
-                Renderer = new SKBitmapRenderer()
+                }
             };
 
             using var bitmap = writer.Write(conteudo);

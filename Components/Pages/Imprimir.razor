@@ -46,7 +46,7 @@
 
                 <div class="mb-3">
                     <label class="form-label">Código de barras</label>
-                    <input class="form-control" @bind="_codigoBarras" @bind:event="oninput" @oninput="AtualizarPreview" placeholder="Digite o código" />
+                    <input class="form-control" @bind="_codigoBarras" @bind:event="oninput" @bind:after="AtualizarPreview" placeholder="Digite o código" />
                 </div>
 
                 @if (_modelo?.RfidAtivo == true)
@@ -57,7 +57,7 @@
                             <small class="text-muted">@_rfidInfo</small>
                         </label>
                         <input class="form-control @(_rfidAviso != null ? "border-warning" : "")"
-                               @bind="_dadoRfid" @bind:event="oninput" @oninput="AtualizarRfidInfo"
+                               @bind="_dadoRfid" @bind:event="oninput" @bind:after="AtualizarRfidInfo"
                                placeholder="Texto ou número para gravar na tag" />
                         @if (_rfidAviso != null)
                         {
@@ -79,7 +79,7 @@
                     <input type="number" class="form-control" @bind="_quantidade" min="1" max="9999" />
                 </div>
 
-                <button class="btn btn-warning w-100" @onclick="Imprimir" disabled="@(_modeloId == 0 || _imprimindo)">
+                <button class="btn btn-warning w-100" @onclick="ExecutarImpressao" disabled="@(_modeloId == 0 || _imprimindo)">
                     @if (_imprimindo)
                     {
                         <span class="spinner-border spinner-border-sm me-2"></span>
@@ -232,7 +232,7 @@
         _rfidInfo = $"{bitsNecessarios}/{_modelo.RfidTamanhoBits} bits";
     }
 
-    private async Task Imprimir()
+    private async Task ExecutarImpressao()
     {
         if (_modelo == null) return;
         _imprimindo = true; _resultado = ""; StateHasChanged();
