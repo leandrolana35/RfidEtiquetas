@@ -147,7 +147,8 @@ public class SatoPrinterService
         if (t.RfidAtivo && !string.IsNullOrWhiteSpace(dadoRfid))
         {
             var encoding = (RfidEncoderService.EncodingTipo)t.RfidEncodingTipo;
-            var result = _rfidEncoder.Codificar(t.RfidPrefixo + dadoRfid, t.RfidTamanhoBits, encoding);
+            var alinhamento = (RfidEncoderService.Alinhamento)t.RfidAlinhamento;
+            var result = _rfidEncoder.Codificar(t.RfidPrefixo + dadoRfid, t.RfidTamanhoBits, encoding, alinhamento);
             avisoRfid = result.Aviso;
 
             // ^RFW,H,2,<words>,1 — Write em Hexadecimal no banco EPC.

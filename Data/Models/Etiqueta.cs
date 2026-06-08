@@ -54,6 +54,7 @@ public class Etiqueta
     public int RfidBanco { get; set; }         // 0=EPC 1=User Memory
     public int RfidTamanhoBits { get; set; } = 96;  // 96, 128 ou 256 bits
     public int RfidEncodingTipo { get; set; }  // 0=ASCII 1=Hex direto
+    public int RfidAlinhamento { get; set; }   // 0=esquerda (zeros depois) 1=direita (zeros antes)
     public string RfidPrefixo { get; set; } = "";
 
     // Imprimir o valor gravado no RFID como texto visível na etiqueta

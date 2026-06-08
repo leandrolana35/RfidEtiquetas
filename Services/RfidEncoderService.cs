@@ -8,6 +8,7 @@ public class RfidEncoderService
 {
     public enum BancoMemoria { EPC = 0, UserMemory = 1 }
     public enum EncodingTipo { ASCII = 0, HexDireto = 1 }
+    public enum Alinhamento { Esquerda = 0, Direita = 1 }
 
     public record ResultadoCodificacao(
         string HexData,
@@ -17,7 +18,8 @@ public class RfidEncoderService
         string? Aviso
     );
 
-    public ResultadoCodificacao Codificar(string dado, int tamanhoBits, EncodingTipo encoding)
+    public ResultadoCodificacao Codificar(string dado, int tamanhoBits, EncodingTipo encoding,
+        Alinhamento alinhamento = Alinhamento.Esquerda)
     {
         if (string.IsNullOrEmpty(dado))
         {
@@ -51,12 +53,17 @@ public class RfidEncoderService
             aviso = $"Dado tem {bitsUsados} bits mas o banco tem {tamanhoBits} bits. " +
                     $"Truncado para {hexCapacidade / 2} caracteres. " +
                     $"Aumente o tamanho do EPC para {NextValidBitSize(bitsUsados)} bits.";
-            hexData = hexData[..hexCapacidade];
+            // Mantém a parte mais relevante conforme o alinhamento
+            hexData = alinhamento == Alinhamento.Direita
+                ? hexData[^hexCapacidade..]   // mantém o final (direita)
+                : hexData[..hexCapacidade];   // mantém o início (esquerda)
         }
         else
         {
-            // Pad with zeros on the right to fill the bank
-            hexData = hexData.PadRight(hexCapacidade, '0');
+            // Preenche com zeros: à direita (valor à esquerda) ou à esquerda (valor à direita)
+            hexData = alinhamento == Alinhamento.Direita
+                ? hexData.PadLeft(hexCapacidade, '0')
+                : hexData.PadRight(hexCapacidade, '0');
         }
 
         return new(hexData.ToUpperInvariant(), bitsUsados, tamanhoBits, bitsUsados <= tamanhoBits, aviso);

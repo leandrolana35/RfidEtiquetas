@@ -224,7 +224,8 @@
         }
 
         var encoding = (RfidEncoderService.EncodingTipo)_modelo.RfidEncodingTipo;
-        var resultado = RfidEncoder.Codificar(_modelo.RfidPrefixo + _dadoRfid, _modelo.RfidTamanhoBits, encoding);
+        var alinhamento = (RfidEncoderService.Alinhamento)_modelo.RfidAlinhamento;
+        var resultado = RfidEncoder.Codificar(_modelo.RfidPrefixo + _dadoRfid, _modelo.RfidTamanhoBits, encoding, alinhamento);
         _rfidHex = resultado.HexData;
         _rfidAviso = resultado.Aviso;
 
