@@ -193,24 +193,22 @@ public class SatoPrinterService
         // Início + acentuação (UTF-8)
         sb.Append("^XA^CI28");
 
-        // Dimensões da etiqueta — só enviadas se o usuário optar por isso.
-        // Por padrão NÃO enviamos, para não sobrescrever a calibração (passo) da impressora.
+        // IMPORTANTE: por padrão NÃO enviamos NENHUM comando que altere a
+        // configuração da impressora (tamanho, passo, posição, velocidade,
+        // densidade, orientação). Apenas gravamos o chip e imprimimos os campos.
+        // Esses ajustes só são enviados se o usuário marcar "Definir tamanho"
+        // explicitamente no modelo.
         if (t.DefinirTamanho)
         {
             sb.Append($"^PW{t.LarguraMm * DotsPorMm}");
             sb.Append($"^LL{t.AlturaMm * DotsPorMm}");
-        }
-
-        sb.Append("^LH0,0^LS0,0^LT0^FWN^LRN");
-
-        // Quantidade (sempre). Velocidade e densidade só com a opção ligada,
-        // pois ^PR e ^MD também alteram configurações persistentes da impressora.
-        sb.Append($"^PQ{Math.Max(1, t.Quantidade)}");
-        if (t.DefinirTamanho)
-        {
+            sb.Append("^LH0,0^LS0,0^LT0^FWN^LRN");
             sb.Append($"^PR{Clamp(t.Velocidade, 1, 14)}");
             sb.Append($"^MD{Clamp(t.Densidade, 0, 30)}");
         }
+
+        // Quantidade de cópias DESTE trabalho (não é configuração persistente).
+        sb.Append($"^PQ{Math.Max(1, t.Quantidade)}");
 
         // === Gravação RFID (banco EPC) ===
         if (t.RfidAtivo && !string.IsNullOrWhiteSpace(dadoRfid))
