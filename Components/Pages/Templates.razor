@@ -167,10 +167,12 @@
                         <div class="col-6">
                             <label class="form-label small">Tamanho EPC (bits)</label>
                             <select class="form-select" @bind="_modelo.RfidTamanhoBits" disabled="@(!_modelo.RfidAtivo)">
-                                <option value="96">96 bits (12 chars ASCII)</option>
-                                <option value="128">128 bits (16 chars ASCII)</option>
-                                <option value="192">192 bits (24 chars ASCII)</option>
-                                <option value="256">256 bits (32 chars ASCII)</option>
+                                <option value="48">48 bits (menor — 6 bytes / 12 chars hex)</option>
+                                <option value="64">64 bits (8 bytes / 16 chars hex)</option>
+                                <option value="96">96 bits (padrão — 12 bytes)</option>
+                                <option value="128">128 bits (16 bytes)</option>
+                                <option value="192">192 bits (24 bytes)</option>
+                                <option value="256">256 bits (32 bytes)</option>
                             </select>
                         </div>
                         <div class="col-6">
@@ -180,13 +182,32 @@
                                 <option value="1">Hex direto</option>
                             </select>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small">Alinhamento dos zeros</label>
-                            <select class="form-select" @bind="_modelo.RfidAlinhamento" disabled="@(!_modelo.RfidAtivo)">
-                                <option value="0">Esquerda — valor + zeros (123000...)</option>
-                                <option value="1">Direita — zeros + valor (...000123)</option>
-                                <option value="2">Direita com espaços (2020... + valor)</option>
-                            </select>
+                        <div class="col-12">
+                            <label class="form-label small d-block">Como preencher o espaço que sobra no chip?</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="alinhamento" id="alZeros"
+                                       checked="@(_modelo.RfidAlinhamento == 1)"
+                                       @onchange="() => _modelo.RfidAlinhamento = 1" disabled="@(!_modelo.RfidAtivo)" />
+                                <label class="form-check-label" for="alZeros">
+                                    <strong>Adiciona zeros</strong> à esquerda &nbsp;<span class="font-monospace text-muted">00000000000000B016002003</span>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="alinhamento" id="alEspacos"
+                                       checked="@(_modelo.RfidAlinhamento == 2)"
+                                       @onchange="() => _modelo.RfidAlinhamento = 2" disabled="@(!_modelo.RfidAtivo)" />
+                                <label class="form-check-label" for="alEspacos">
+                                    <strong>Adiciona espaços</strong> à esquerda &nbsp;<span class="font-monospace text-muted">2020202020 2020B016002003</span>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="alinhamento" id="alDireita"
+                                       checked="@(_modelo.RfidAlinhamento == 0)"
+                                       @onchange="() => _modelo.RfidAlinhamento = 0" disabled="@(!_modelo.RfidAtivo)" />
+                                <label class="form-check-label" for="alDireita">
+                                    Zeros à direita (valor primeiro) &nbsp;<span class="font-monospace text-muted">B01600200300000000000000</span>
+                                </label>
+                            </div>
                         </div>
                         <div class="col-6">
                             <label class="form-label small">Prefixo fixo</label>
