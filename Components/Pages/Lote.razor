@@ -183,6 +183,17 @@
                         </div>
                     }
 
+                    <div class="mb-2">
+                        <label class="form-label small">Intervalo entre etiquetas (milissegundos)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" @bind="_intervalo" min="0" max="5000" step="100" disabled="@_imprimindo" />
+                            <span class="input-group-text">ms</span>
+                        </div>
+                        <div class="form-text">
+                            Maior = mais devagar. Sugestão: 1500 ms. (1000 ms = 1 segundo)
+                        </div>
+                    </div>
+
                     <button class="btn btn-warning w-100" @onclick="ImprimirLote" disabled="@(_modeloId == 0 || _imprimindo)">
                         @if (_imprimindo)
                         {
@@ -231,6 +242,7 @@
     private string _msgOrigem = "";
     private bool _erroOrigem;
 
+    private int _intervalo = 1500; // ms entre cada etiqueta no lote
     private bool _imprimindo;
     private int _progresso;
     private string _resultado = "";
@@ -308,7 +320,7 @@
         var itens = _lista.Select(c => (CodigoBarras: c, DadoRfid: c)).ToList();
 
         var resultado = await Task.Run(() =>
-            Printer.ImprimirLote(modelo, itens, _params, feitos =>
+            Printer.ImprimirLote(modelo, itens, _params, _intervalo, feitos =>
             {
                 _progresso = feitos;
                 InvokeAsync(StateHasChanged);

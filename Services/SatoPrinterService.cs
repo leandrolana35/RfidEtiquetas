@@ -64,6 +64,7 @@ public class SatoPrinterService
         Etiqueta template,
         List<(string CodigoBarras, string DadoRfid)> itens,
         Parametros conexao,
+        int intervaloMs = 1000,
         Action<int>? onProgresso = null)
     {
         // Cada etiqueta do lote é impressa uma vez
@@ -86,7 +87,7 @@ public class SatoPrinterService
                     stream.Flush();
                     feitos++;
                     onProgresso?.Invoke(feitos);
-                    PausarEntreEtiquetas(template.Intervalo);
+                    PausarEntreEtiquetas(intervaloMs);
                 }
             }
             else
@@ -104,7 +105,7 @@ public class SatoPrinterService
                     porta.Write(bytes, 0, bytes.Length);
                     feitos++;
                     onProgresso?.Invoke(feitos);
-                    PausarEntreEtiquetas(template.Intervalo);
+                    PausarEntreEtiquetas(intervaloMs);
                 }
                 porta.Close();
             }
