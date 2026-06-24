@@ -183,8 +183,9 @@
                         <div class="col-6">
                             <label class="form-label small">Alinhamento dos zeros</label>
                             <select class="form-select" @bind="_modelo.RfidAlinhamento" disabled="@(!_modelo.RfidAtivo)">
-                                <option value="0">Esquerda — valor primeiro (123000...)</option>
-                                <option value="1">Direita — zeros primeiro (...000123)</option>
+                                <option value="0">Esquerda — valor + zeros (123000...)</option>
+                                <option value="1">Direita — zeros + valor (...000123)</option>
+                                <option value="2">Direita com espaços (2020... + valor)</option>
                             </select>
                         </div>
                         <div class="col-6">

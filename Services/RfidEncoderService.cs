@@ -8,7 +8,8 @@ public class RfidEncoderService
 {
     public enum BancoMemoria { EPC = 0, UserMemory = 1 }
     public enum EncodingTipo { ASCII = 0, HexDireto = 1 }
-    public enum Alinhamento { Esquerda = 0, Direita = 1 }
+    // Esquerda/Direita = preenche com zeros. EspacosEsquerda = preenche com espaços (0x20="20") à esquerda.
+    public enum Alinhamento { Esquerda = 0, Direita = 1, EspacosEsquerda = 2 }
 
     public record ResultadoCodificacao(
         string HexData,
@@ -60,10 +61,16 @@ public class RfidEncoderService
         }
         else
         {
-            // Preenche com zeros: à direita (valor à esquerda) ou à esquerda (valor à direita)
-            hexData = alinhamento == Alinhamento.Direita
-                ? hexData.PadLeft(hexCapacidade, '0')
-                : hexData.PadRight(hexCapacidade, '0');
+            hexData = alinhamento switch
+            {
+                // Zeros à esquerda (valor encostado à direita)
+                Alinhamento.Direita => hexData.PadLeft(hexCapacidade, '0'),
+                // Espaços (0x20 = "20") à esquerda; valor encostado à direita
+                Alinhamento.EspacosEsquerda =>
+                    string.Concat(Enumerable.Repeat("20", (hexCapacidade - hexData.Length) / 2)) + hexData,
+                // Padrão: zeros à direita (valor à esquerda)
+                _ => hexData.PadRight(hexCapacidade, '0')
+            };
         }
 
         return new(hexData.ToUpperInvariant(), bitsUsados, tamanhoBits, bitsUsados <= tamanhoBits, aviso);
