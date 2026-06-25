@@ -191,25 +191,16 @@ public class SatoPrinterService
         avisoRfid = null;
         var sb = new StringBuilder();
 
-        // Início + acentuação (UTF-8)
+        // Estrutura replicada EXATAMENTE do app original que funciona com a impressora.
+        // O RFID depende destes comandos de geometria (^PW/^LL/^LH...) para posicionar
+        // a tag corretamente sob a antena — sem eles ocorre erro de inlay/multitag.
         sb.Append("^XA^CI28");
-
-        // IMPORTANTE: por padrão NÃO enviamos NENHUM comando que altere a
-        // configuração da impressora (tamanho, passo, posição, velocidade,
-        // densidade, orientação). Apenas gravamos o chip e imprimimos os campos.
-        // Esses ajustes só são enviados se o usuário marcar "Definir tamanho"
-        // explicitamente no modelo.
-        if (t.DefinirTamanho)
-        {
-            sb.Append($"^PW{t.LarguraMm * DotsPorMm}");
-            sb.Append($"^LL{t.AlturaMm * DotsPorMm}");
-            sb.Append("^LH0,0^LS0,0^LT0^FWN^LRN");
-            sb.Append($"^PR{Clamp(t.Velocidade, 1, 14)}");
-            sb.Append($"^MD{Clamp(t.Densidade, 0, 30)}");
-        }
-
-        // Quantidade de cópias DESTE trabalho (não é configuração persistente).
+        sb.Append($"^PW{t.LarguraMm * DotsPorMm}");
+        sb.Append($"^LL{t.AlturaMm * DotsPorMm}");
+        sb.Append("^LH0,0^LS0,0^LT0^FWN^LRN");
         sb.Append($"^PQ{Math.Max(1, t.Quantidade)}");
+        sb.Append($"^PR{Clamp(t.Velocidade, 1, 14)}");
+        sb.Append($"^MD{Clamp(t.Densidade, 0, 30)}");
 
         // === Gravação RFID (banco EPC) ===
         if (t.RfidAtivo && !string.IsNullOrWhiteSpace(dadoRfid))
