@@ -212,6 +212,25 @@
                         <div class="alert @(_resultadoErro ? "alert-danger" : "alert-success") py-2 mt-2 mb-0">@_resultado</div>
                     }
                 }
+
+                <hr />
+                <div class="bg-light rounded p-2">
+                    <label class="form-label small fw-semibold mb-1">
+                        <i class="bi bi-arrow-repeat me-1"></i>Regravar um código avulso
+                    </label>
+                    <div class="input-group">
+                        <input class="form-control" @bind="_codigoAvulso" placeholder="Digite o código que falhou (ex: B016002003)" disabled="@_imprimindo" />
+                        <button class="btn btn-outline-primary" @onclick="RegravarAvulso"
+                                disabled="@(_modeloId == 0 || _imprimindo || string.IsNullOrWhiteSpace(_codigoAvulso))">
+                            Regravar
+                        </button>
+                    </div>
+                    <div class="form-text">Para retentar um código que deu erro (ex: multitag), sem refazer o lote todo.</div>
+                    @if (!string.IsNullOrEmpty(_resultadoAvulso))
+                    {
+                        <div class="alert @(_resultadoAvulsoErro ? "alert-danger" : "alert-success") py-2 mt-2 mb-0 small">@_resultadoAvulso</div>
+                    }
+                </div>
             </div>
         </div>
     </div>
@@ -243,6 +262,12 @@
     private bool _erroOrigem;
 
     private int _intervalo = 1500; // ms entre cada etiqueta no lote
+
+    // Regravação avulsa (retry de um código que falhou)
+    private string _codigoAvulso = "";
+    private string _resultadoAvulso = "";
+    private bool _resultadoAvulsoErro;
+
     private bool _imprimindo;
     private int _progresso;
     private string _resultado = "";
@@ -331,5 +356,24 @@
         _resultado = resultado.Sucesso
             ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
             : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
+    }
+
+    private async Task RegravarAvulso()
+    {
+        var modelo = Db.GetEtiqueta(_modeloId);
+        if (modelo == null || string.IsNullOrWhiteSpace(_codigoAvulso)) return;
+
+        _imprimindo = true;
+        _resultadoAvulso = "";
+        StateHasChanged();
+
+        var cod = _codigoAvulso.Trim();
+        var resultado = await Task.Run(() => Printer.Imprimir(modelo, cod, cod, _params));
+
+        _imprimindo = false;
+        _resultadoAvulsoErro = !resultado.Sucesso;
+        _resultadoAvulso = resultado.Sucesso
+            ? $"Código {cod} reenviado para a impressora."
+            : $"Erro: {resultado.Erro}";
     }
 }

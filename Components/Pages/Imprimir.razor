@@ -95,8 +95,16 @@
 
         @if (!string.IsNullOrEmpty(_resultado))
         {
-            <div class="alert @(_resultadoErro ? "alert-danger" : "alert-success") mt-3 py-2">
+            <div class="alert @(_resultadoErro ? "alert-danger" : "alert-success") mt-3 py-2 mb-2">
                 @_resultado
+            </div>
+
+            <button class="btn btn-outline-primary w-100" @onclick="ExecutarImpressao" disabled="@(_modeloId == 0 || _imprimindo)">
+                <i class="bi bi-arrow-repeat me-2"></i>Tentar novamente (regravar o mesmo código)
+            </button>
+            <div class="form-text">
+                Use se a impressora acusar erro (ex: multitag). A etiqueta com erro é descartada
+                e o código é gravado na próxima etiqueta.
             </div>
         }
     </div>
