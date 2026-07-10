@@ -1,0 +1,11 @@
+@inject NavigationManager Nav
+
+@code {
+    // Precisa de forceLoad porque /login é uma Razor Page fora do SPA do Blazor
+    // (login tem que gravar cookie via HttpContext, o que não é possível de
+    // dentro de um componente Blazor Server já conectado por SignalR).
+    protected override void OnInitialized()
+    {
+        Nav.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Nav.Uri)}", forceLoad: true);
+    }
+}
