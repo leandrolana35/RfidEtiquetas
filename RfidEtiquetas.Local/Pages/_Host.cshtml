@@ -1,5 +1,5 @@
 @page "/"
-@namespace RfidEtiquetas.Pages
+@namespace RfidEtiquetas.Local.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @{
     Layout = null;
@@ -16,7 +16,7 @@
     <base href="~/" />
 </head>
 <body>
-    <component type="typeof(RfidEtiquetas.Components.App)" render-mode="ServerPrerendered" />
+    <component type="typeof(RfidEtiquetas.Local.Components.App)" render-mode="ServerPrerendered" />
     <script src="_framework/blazor.server.js"></script>
 </body>
 </html>

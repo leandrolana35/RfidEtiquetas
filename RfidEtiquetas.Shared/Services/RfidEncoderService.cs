@@ -1,4 +1,4 @@
-namespace RfidEtiquetas.Services;
+namespace RfidEtiquetas.Shared.Services;
 
 /// <summary>
 /// Encodes data for RFID Gen2 tags.

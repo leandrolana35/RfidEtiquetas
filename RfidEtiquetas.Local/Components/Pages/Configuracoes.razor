@@ -1,0 +1,231 @@
+@page "/configuracoes"
+@inject AppDbContext Db
+@inject ZplPrinterService Printer
+
+<PageTitle>Estações de Impressão</PageTitle>
+
+@if (_editando)
+{
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Cancelar"><i class="bi bi-arrow-left"></i></button>
+        <h5 class="mb-0">@(_estacao.Id == 0 ? "Nova estação" : $"Editando: {_estacao.NomeEstacao}")</h5>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white">Estação e impressora</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome da estação</label>
+                        <input class="form-control" @bind="_estacao.NomeEstacao" placeholder="Ex: Estação 1 - Linha A" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Modelo de impressora</label>
+                        <select class="form-select" @bind="_estacao.ModeloImpressora">
+                            <option value="@ModeloImpressora.Sato_CL4NX">Sato CL4NX Plus</option>
+                            <option value="@ModeloImpressora.Printronix_T6000">Printronix T6000</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Como conectar à impressora?</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="tipoConexao" id="conRede"
+                                   checked="@(_estacao.TipoConexao == TipoConexaoImpressora.Rede)"
+                                   @onchange="() => _estacao.TipoConexao = TipoConexaoImpressora.Rede" />
+                            <label class="btn btn-outline-primary" for="conRede">
+                                <i class="bi bi-ethernet me-1"></i>Rede (cabo Ethernet)
+                            </label>
+
+                            <input type="radio" class="btn-check" name="tipoConexao" id="conCom"
+                                   checked="@(_estacao.TipoConexao == TipoConexaoImpressora.Com)"
+                                   @onchange="() => _estacao.TipoConexao = TipoConexaoImpressora.Com" />
+                            <label class="btn btn-outline-primary" for="conCom">
+                                <i class="bi bi-usb-symbol me-1"></i>USB (porta COM)
+                            </label>
+                        </div>
+                        <div class="form-text">Recomendado: <strong>Rede</strong> — mais estável.</div>
+                    </div>
+
+                    @if (_estacao.TipoConexao == TipoConexaoImpressora.Rede)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">IP da impressora</label>
+                            <input class="form-control" @bind="_estacao.ImpressoraIp" placeholder="192.168.1.100" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Porta TCP</label>
+                            <input type="number" class="form-control" @bind="_estacao.ImpressoraPorta" />
+                            <div class="form-text">Sato e Printronix usam <strong>9100</strong> por padrão.</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Porta COM</label>
+                            <div class="input-group">
+                                <select class="form-select" @bind="_estacao.PortaCom">
+                                    @foreach (var p in _portas)
+                                    {
+                                        <option value="@p">@p</option>
+                                    }
+                                </select>
+                                <button class="btn btn-outline-secondary" @onclick="AtualizarPortas">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Baud Rate</label>
+                            <select class="form-select" @bind="_estacao.BaudRate">
+                                <option value="9600">9600</option>
+                                <option value="19200">19200</option>
+                                <option value="38400">38400</option>
+                                <option value="115200">115200</option>
+                            </select>
+                        </div>
+                    }
+
+                    <button class="btn btn-outline-success w-100" @onclick="TestarConexao" disabled="@_testando">
+                        @if (_testando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-plug me-1"></i>
+                        }
+                        Testar conexão
+                    </button>
+                    @if (!string.IsNullOrEmpty(_testeMsg))
+                    {
+                        <div class="alert @(_testeOk ? "alert-success" : "alert-danger") py-2 mt-2 mb-0 small">
+                            @_testeMsg
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 d-flex gap-2">
+            <button class="btn btn-warning" @onclick="Salvar">
+                <i class="bi bi-check-lg me-1"></i>Salvar estação
+            </button>
+            <button class="btn btn-outline-secondary" @onclick="Cancelar">Cancelar</button>
+            @if (_estacao.Id > 0)
+            {
+                <button class="btn btn-outline-danger ms-auto" @onclick="Excluir">
+                    <i class="bi bi-trash me-1"></i>Excluir
+                </button>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Estações de Impressão</h5>
+        <button class="btn btn-warning" @onclick="Novo">
+            <i class="bi bi-plus-lg me-1"></i>Nova estação
+        </button>
+    </div>
+
+    @if (_lista.Count == 0)
+    {
+        <div class="text-center text-muted py-5">
+            <i class="bi bi-inbox fs-1"></i>
+            <p class="mt-2">Nenhuma estação cadastrada. Clique em "Nova estação" para começar.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var e in _lista)
+            {
+                <div class="col-md-4">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">@e.NomeEstacao</h6>
+                            <div class="small text-muted">
+                                <span><i class="bi bi-printer me-1"></i>@NomeModelo(e.ModeloImpressora)</span><br />
+                                <span>
+                                    <i class="bi @(e.TipoConexao == TipoConexaoImpressora.Rede ? "bi-ethernet" : "bi-usb-symbol") me-1"></i>
+                                    @(e.TipoConexao == TipoConexaoImpressora.Rede ? $"{e.ImpressoraIp}:{e.ImpressoraPorta}" : e.PortaCom)
+                                </span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => Editar(e.Id)">
+                                <i class="bi bi-pencil"></i> Editar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private List<EstacaoImpressora> _lista = [];
+    private EstacaoImpressora _estacao = new();
+    private string[] _portas = [];
+    private bool _editando;
+    private bool _testando;
+    private bool _testeOk;
+    private string _testeMsg = "";
+
+    protected override void OnInitialized()
+    {
+        _lista = Db.GetEstacoes();
+    }
+
+    private void Novo() { _estacao = new(); _editando = true; AtualizarPortas(); }
+
+    private void Editar(int id)
+    {
+        var e = Db.GetEstacao(id);
+        if (e == null) return;
+        _estacao = e; _editando = true; _testeMsg = "";
+        AtualizarPortas();
+    }
+
+    private void Cancelar() { _editando = false; _lista = Db.GetEstacoes(); }
+
+    private void AtualizarPortas()
+    {
+        _portas = Printer.ListarPortas();
+        if (_portas.Length > 0 && !_portas.Contains(_estacao.PortaCom))
+            _estacao.PortaCom = _portas[0];
+    }
+
+    private void Salvar()
+    {
+        Db.SaveEstacao(_estacao);
+        Cancelar();
+    }
+
+    private void Excluir()
+    {
+        Db.DeleteEstacao(_estacao.Id);
+        Cancelar();
+    }
+
+    private async Task TestarConexao()
+    {
+        _testando = true; _testeMsg = ""; StateHasChanged();
+        var r = await Task.Run(() => Printer.TestarConexao(_estacao));
+        _testando = false;
+        _testeOk = r.Sucesso;
+        _testeMsg = r.Sucesso
+            ? "Conexão OK! A impressora respondeu."
+            : $"Falha na conexão: {r.Erro}";
+    }
+
+    private static string NomeModelo(ModeloImpressora m) => m switch
+    {
+        ModeloImpressora.Printronix_T6000 => "Printronix T6000",
+        _ => "Sato CL4NX Plus"
+    };
+}

@@ -1,6 +1,6 @@
 @page "/imprimir"
 @inject AppDbContext Db
-@inject SatoPrinterService Printer
+@inject IPrinterService Printer
 @inject RfidEncoderService RfidEncoder
 @inject BarcodeService Barcode
 
@@ -15,8 +15,25 @@
             <div class="card-header bg-dark text-white">Configuração</div>
             <div class="card-body">
                 <div class="mb-3">
+                    <label class="form-label">Projeto <span class="text-muted">(opcional)</span></label>
+                    <select class="form-select" @bind="_projetoId" @bind:after="OnProjetoChanged">
+                        <option value="0">-- Impressão avulsa, sem projeto --</option>
+                        @foreach (var p in _projetos)
+                        {
+                            <option value="@p.Id">@p.Codigo — @p.Nome</option>
+                        }
+                    </select>
+                    @if (_projeto != null)
+                    {
+                        <div class="form-text">
+                            Próxima sequência pendente: <strong>@(_proximaTag?.NumeroSequencia.ToString() ?? "nenhuma — faixa concluída")</strong>
+                        </div>
+                    }
+                </div>
+
+                <div class="mb-3">
                     <label class="form-label">Modelo de etiqueta</label>
-                    <select class="form-select" @bind="_modeloId" @bind:after="OnModeloChanged">
+                    <select class="form-select" @bind="_modeloId" @bind:after="OnModeloChanged" disabled="@(_projeto != null)">
                         <option value="0">-- Selecione --</option>
                         @foreach (var e in _modelos)
                         {
@@ -26,22 +43,20 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">Impressora</label>
-                    <div class="form-control bg-light d-flex justify-content-between align-items-center">
-                        <span>
-                            @if (_params.TipoConexao == 1)
-                            {
-                                <i class="bi bi-ethernet me-1 text-primary"></i>
-                                <span>Rede — @_params.ImpressoraIp:@_params.ImpressoraPorta</span>
-                            }
-                            else
-                            {
-                                <i class="bi bi-usb-symbol me-1 text-primary"></i>
-                                <span>USB — @_params.PortaCom</span>
-                            }
-                        </span>
-                        <a href="configuracoes" class="small text-decoration-none">alterar</a>
-                    </div>
+                    <label class="form-label">Estação / impressora</label>
+                    <select class="form-select" @bind="_estacaoId" @bind:after="OnEstacaoChanged">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var e in _estacoes)
+                        {
+                            <option value="@e.Id">@e.NomeEstacao</option>
+                        }
+                    </select>
+                    @if (_estacao != null)
+                    {
+                        <div class="form-text">
+                            <a href="configuracoes" class="text-decoration-none">alterar configuração desta estação</a>
+                        </div>
+                    }
                 </div>
 
                 <div class="mb-3">
@@ -76,10 +91,10 @@
 
                 <div class="mb-3">
                     <label class="form-label">Quantidade</label>
-                    <input type="number" class="form-control" @bind="_quantidade" min="1" max="9999" />
+                    <input type="number" class="form-control" @bind="_quantidade" min="1" max="9999" disabled="@(_projeto != null)" />
                 </div>
 
-                <button class="btn btn-warning w-100" @onclick="ExecutarImpressao" disabled="@(_modeloId == 0 || _imprimindo)">
+                <button class="btn btn-warning w-100" @onclick="ExecutarImpressao" disabled="@(!PodeImprimir || _imprimindo)">
                     @if (_imprimindo)
                     {
                         <span class="spinner-border spinner-border-sm me-2"></span>
@@ -99,7 +114,7 @@
                 @_resultado
             </div>
 
-            <button class="btn btn-outline-primary w-100" @onclick="ExecutarImpressao" disabled="@(_modeloId == 0 || _imprimindo)">
+            <button class="btn btn-outline-primary w-100" @onclick="ExecutarImpressao" disabled="@(!PodeImprimir || _imprimindo)">
                 <i class="bi bi-arrow-repeat me-2"></i>Tentar novamente (regravar o mesmo código)
             </button>
             <div class="form-text">
@@ -120,7 +135,7 @@
                 {
                     <div class="text-center text-muted py-4">
                         <i class="bi bi-layout-text-sidebar fs-1"></i>
-                        <p>Selecione um modelo para ver o preview</p>
+                        <p>Selecione um modelo (ou um projeto) para ver o preview</p>
                     </div>
                 }
                 else
@@ -163,7 +178,7 @@
 
                     <div class="mt-3">
                         <div class="small text-muted fw-semibold mb-1">Comando ZPL que será enviado à impressora:</div>
-                        <pre class="bg-dark text-light p-2 rounded small" style="max-height:120px;overflow:auto">@_sbplPreview</pre>
+                        <pre class="bg-dark text-light p-2 rounded small" style="max-height:120px;overflow:auto">@_zplPreview</pre>
                     </div>
                 }
             </div>
@@ -174,9 +189,16 @@
 @code {
     [SupplyParameterFromQuery] public int modeloId { get; set; }
 
-    private List<RfidEtiquetas.Data.Models.Etiqueta> _modelos = [];
-    private RfidEtiquetas.Data.Models.Etiqueta? _modelo;
-    private RfidEtiquetas.Data.Models.Parametros _params = new();
+    private List<Etiqueta> _modelos = [];
+    private Etiqueta? _modelo;
+    private List<EstacaoImpressora> _estacoes = [];
+    private EstacaoImpressora? _estacao;
+    private int _estacaoId;
+    private List<Projeto> _projetos = [];
+    private Projeto? _projeto;
+    private int _projetoId;
+    private TagRegistro? _proximaTag;
+
     private int _modeloId;
     private string _codigoBarras = "";
     private string _dadoRfid = "";
@@ -185,21 +207,31 @@
     private string _resultado = "";
     private bool _resultadoErro;
     private string _barcodeBase64 = "";
-    private string _sbplPreview = "";
+    private string _zplPreview = "";
     private string _rfidHex = "";
     private string? _rfidAviso;
     private string _rfidInfo = "";
 
+    private bool PodeImprimir => _modelo != null && _estacao != null && (_projeto == null || _proximaTag != null);
+
     protected override void OnInitialized()
     {
         _modelos = Db.GetEtiquetas();
-        _params = Db.GetParametros();
+        _estacoes = Db.GetEstacoes();
+        _projetos = Db.GetProjetos();
+
+        if (_estacoes.Count == 1) { _estacaoId = _estacoes[0].Id; OnEstacaoChanged(); }
 
         if (modeloId > 0)
         {
             _modeloId = modeloId;
             OnModeloChanged();
         }
+    }
+
+    private void OnEstacaoChanged()
+    {
+        _estacao = _estacaoId > 0 ? _estacoes.FirstOrDefault(e => e.Id == _estacaoId) : null;
     }
 
     private void OnModeloChanged()
@@ -212,6 +244,26 @@
         }
     }
 
+    private void OnProjetoChanged()
+    {
+        _projeto = _projetoId > 0 ? Db.GetProjeto(_projetoId) : null;
+        if (_projeto == null) return;
+
+        _modeloId = _projeto.EtiquetaTemplateId;
+        OnModeloChanged();
+        CarregarProximaTag();
+    }
+
+    private void CarregarProximaTag()
+    {
+        if (_projeto == null) return;
+        _proximaTag = Db.ProximaTagPendente(_projeto.Id);
+        _codigoBarras = _proximaTag?.NumeroSequencia.ToString() ?? "";
+        _dadoRfid = _codigoBarras;
+        _quantidade = 1;
+        AtualizarPreview();
+    }
+
     private void AtualizarPreview()
     {
         if (_modelo == null) return;
@@ -220,7 +272,8 @@
             _barcodeBase64 = Barcode.GerarBase64(_modelo.BarPrefixo + _codigoBarras + _modelo.BarSufixo, _modelo.BarTipo);
 
         AtualizarRfidInfo();
-        _sbplPreview = Printer.GerarSbplPreview(_modelo, _codigoBarras, _dadoRfid);
+        if (Printer is RfidEtiquetas.Local.Services.Printing.ZplPrinterService zplPrinter && _estacao != null)
+            _zplPreview = zplPrinter.GerarZplPreview(_modelo, _codigoBarras, _dadoRfid, _estacao.ModeloImpressora);
     }
 
     private void AtualizarRfidInfo()
@@ -243,21 +296,28 @@
 
     private async Task ExecutarImpressao()
     {
-        if (_modelo == null) return;
+        if (_modelo == null || _estacao == null) return;
         _imprimindo = true; _resultado = ""; StateHasChanged();
 
         _modelo.Quantidade = _quantidade;
+        var estacao = _estacao;
         var resultado = await Task.Run(() =>
-            Printer.Imprimir(_modelo, _codigoBarras, _dadoRfid, _params));
+            Printer.Imprimir(_modelo, _codigoBarras, _dadoRfid, estacao));
 
         _imprimindo = false;
         _resultadoErro = !resultado.Sucesso;
-        var destino = _params.TipoConexao == 1 ? $"{_params.ImpressoraIp}:{_params.ImpressoraPorta}" : _params.PortaCom;
+        var destino = estacao.TipoConexao == TipoConexaoImpressora.Rede ? $"{estacao.ImpressoraIp}:{estacao.ImpressoraPorta}" : estacao.PortaCom;
         _resultado = resultado.Sucesso
             ? $"Impressão enviada com sucesso para {destino}."
             : $"Erro: {resultado.Erro}";
 
         if (resultado.AvisoRfid != null)
             _resultado += $"\nAviso RFID: {resultado.AvisoRfid}";
+
+        if (_proximaTag != null)
+        {
+            Db.MarcarTag(_proximaTag.Id, resultado.Sucesso ? StatusTag.Impressa : StatusTag.Erro, estacao.Id, resultado.Erro);
+            CarregarProximaTag();
+        }
     }
 }

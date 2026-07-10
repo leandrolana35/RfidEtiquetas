@@ -2,7 +2,7 @@ using SkiaSharp;
 using ZXing;
 using ZXing.Common;
 
-namespace RfidEtiquetas.Services;
+namespace RfidEtiquetas.Shared.Services;
 
 public class BarcodeService
 {

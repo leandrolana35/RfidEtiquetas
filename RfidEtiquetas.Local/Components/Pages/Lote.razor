@@ -1,8 +1,7 @@
 @page "/lote"
 @inject AppDbContext Db
 @inject LoteService LoteSvc
-@inject SatoPrinterService Printer
-@using RfidEtiquetas.Data.Models
+@inject IPrinterService Printer
 
 <PageTitle>Imprimir em Lote</PageTitle>
 
@@ -11,11 +10,21 @@
 <div class="row g-3">
     <div class="col-md-5">
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-dark text-white">1. Modelo e impressora</div>
+            <div class="card-header bg-dark text-white">1. Projeto, modelo e estação</div>
             <div class="card-body">
                 <div class="mb-3">
+                    <label class="form-label">Projeto <span class="text-muted">(opcional)</span></label>
+                    <select class="form-select" @bind="_projetoId" @bind:after="OnProjetoChanged">
+                        <option value="0">-- Lote avulso, sem projeto --</option>
+                        @foreach (var p in _projetos)
+                        {
+                            <option value="@p.Id">@p.Codigo — @p.Nome</option>
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
                     <label class="form-label">Modelo de etiqueta</label>
-                    <select class="form-select" @bind="_modeloId" @bind:after="OnModeloChanged">
+                    <select class="form-select" @bind="_modeloId" disabled="@(_projeto != null)">
                         <option value="0">-- Selecione --</option>
                         @foreach (var e in _modelos)
                         {
@@ -23,15 +32,15 @@
                         }
                     </select>
                 </div>
-                <div class="small text-muted">
-                    @if (_params.TipoConexao == 1)
-                    {
-                        <i class="bi bi-ethernet me-1"></i><span>Rede — @_params.ImpressoraIp:@_params.ImpressoraPorta</span>
-                    }
-                    else
-                    {
-                        <i class="bi bi-usb-symbol me-1"></i><span>USB — @_params.PortaCom</span>
-                    }
+                <div class="mb-3">
+                    <label class="form-label">Estação / impressora</label>
+                    <select class="form-select" @bind="_estacaoId" @bind:after="OnEstacaoChanged">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var e in _estacoes)
+                        {
+                            <option value="@e.Id">@e.NomeEstacao</option>
+                        }
+                    </select>
                 </div>
             </div>
         </div>
@@ -39,87 +48,98 @@
         <div class="card shadow-sm border-0 mt-3">
             <div class="card-header bg-dark text-white">2. Origem dos códigos</div>
             <div class="card-body">
-                <ul class="nav nav-pills mb-3">
-                    <li class="nav-item">
-                        <button class="nav-link @(_modo == 0 ? "active" : "")" @onclick="() => _modo = 0">
-                            <i class="bi bi-123 me-1"></i>Gerar sequência
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link @(_modo == 1 ? "active" : "")" @onclick="() => _modo = 1">
-                            <i class="bi bi-file-earmark-excel me-1"></i>Importar planilha
-                        </button>
-                    </li>
-                </ul>
-
-                @if (_modo == 0)
+                @if (_projeto != null)
                 {
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <label class="form-label small">Valor inicial</label>
-                            <input type="number" class="form-control" @bind="_seqInicio" />
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small">Quantidade</label>
-                            <input type="number" class="form-control" @bind="_seqQtd" min="1" max="100000" />
-                        </div>
-                        <div class="col-4">
-                            <label class="form-label small">Incremento</label>
-                            <input type="number" class="form-control" @bind="_seqInc" />
-                        </div>
-                        <div class="col-4">
-                            <label class="form-label small">Nº de dígitos</label>
-                            <input type="number" class="form-control" @bind="_seqDigitos" min="0" />
-                        </div>
-                        <div class="col-4 d-flex align-items-end">
-                            <span class="small text-muted">0 = sem zeros</span>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small">Prefixo</label>
-                            <input class="form-control" @bind="_seqPrefixo" />
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small">Sufixo</label>
-                            <input class="form-control" @bind="_seqSufixo" />
-                        </div>
-                        <div class="col-12 mt-2">
-                            <button class="btn btn-outline-primary w-100" @onclick="GerarSequencia">
-                                <i class="bi bi-list-ol me-1"></i>Gerar lista
-                            </button>
-                        </div>
+                    <div class="alert alert-info py-2 small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Os códigos vêm da faixa cadastrada no projeto (@_tagsPendentes.Count pendentes de
+                        @(_projeto.SequenciaFinal - _projeto.SequenciaInicial + 1)).
                     </div>
                 }
                 else
                 {
-                    <div class="row g-2">
-                        <div class="col-12">
-                            <label class="form-label small">Arquivo (.xlsx, .xls ou .csv)</label>
-                            <InputFile class="form-control" OnChange="CarregarArquivo" accept=".xlsx,.xls,.csv" />
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small">Coluna dos códigos</label>
-                            <select class="form-select" @bind="_coluna">
-                                <option value="0">Coluna A (1ª)</option>
-                                <option value="1">Coluna B (2ª)</option>
-                                <option value="2">Coluna C (3ª)</option>
-                                <option value="3">Coluna D (4ª)</option>
-                            </select>
-                        </div>
-                        <div class="col-6 d-flex align-items-end">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" @bind="_temCabecalho" id="cab" />
-                                <label class="form-check-label small" for="cab">1ª linha é cabeçalho</label>
+                    <ul class="nav nav-pills mb-3">
+                        <li class="nav-item">
+                            <button class="nav-link @(_modo == 0 ? "active" : "")" @onclick="() => _modo = 0">
+                                <i class="bi bi-123 me-1"></i>Gerar sequência
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link @(_modo == 1 ? "active" : "")" @onclick="() => _modo = 1">
+                                <i class="bi bi-file-earmark-excel me-1"></i>Importar planilha
+                            </button>
+                        </li>
+                    </ul>
+
+                    @if (_modo == 0)
+                    {
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label small">Valor inicial</label>
+                                <input type="number" class="form-control" @bind="_seqInicio" />
                             </div>
-                        </div>
-                        @if (!string.IsNullOrEmpty(_arquivoNome))
-                        {
-                            <div class="col-12">
-                                <button class="btn btn-outline-primary w-100" @onclick="RecarregarArquivo">
-                                    <i class="bi bi-arrow-clockwise me-1"></i>Reprocessar "@_arquivoNome"
+                            <div class="col-6">
+                                <label class="form-label small">Quantidade</label>
+                                <input type="number" class="form-control" @bind="_seqQtd" min="1" max="100000" />
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label small">Incremento</label>
+                                <input type="number" class="form-control" @bind="_seqInc" />
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label small">Nº de dígitos</label>
+                                <input type="number" class="form-control" @bind="_seqDigitos" min="0" />
+                            </div>
+                            <div class="col-4 d-flex align-items-end">
+                                <span class="small text-muted">0 = sem zeros</span>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Prefixo</label>
+                                <input class="form-control" @bind="_seqPrefixo" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Sufixo</label>
+                                <input class="form-control" @bind="_seqSufixo" />
+                            </div>
+                            <div class="col-12 mt-2">
+                                <button class="btn btn-outline-primary w-100" @onclick="GerarSequencia">
+                                    <i class="bi bi-list-ol me-1"></i>Gerar lista
                                 </button>
                             </div>
-                        }
-                    </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <label class="form-label small">Arquivo (.xlsx, .xls ou .csv)</label>
+                                <InputFile class="form-control" OnChange="CarregarArquivo" accept=".xlsx,.xls,.csv" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Coluna dos códigos</label>
+                                <select class="form-select" @bind="_coluna">
+                                    <option value="0">Coluna A (1ª)</option>
+                                    <option value="1">Coluna B (2ª)</option>
+                                    <option value="2">Coluna C (3ª)</option>
+                                    <option value="3">Coluna D (4ª)</option>
+                                </select>
+                            </div>
+                            <div class="col-6 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="_temCabecalho" id="cab" />
+                                    <label class="form-check-label small" for="cab">1ª linha é cabeçalho</label>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(_arquivoNome))
+                            {
+                                <div class="col-12">
+                                    <button class="btn btn-outline-primary w-100" @onclick="RecarregarArquivo">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Reprocessar "@_arquivoNome"
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
                 }
 
                 @if (!string.IsNullOrEmpty(_msgOrigem))
@@ -144,7 +164,7 @@
                 {
                     <div class="text-center text-muted py-4">
                         <i class="bi bi-list-ul fs-1"></i>
-                        <p>Gere uma sequência ou importe uma planilha</p>
+                        <p>Escolha um projeto, gere uma sequência ou importe uma planilha</p>
                     </div>
                 }
                 else
@@ -194,7 +214,7 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-warning w-100" @onclick="ImprimirLote" disabled="@(_modeloId == 0 || _imprimindo)">
+                    <button class="btn btn-warning w-100" @onclick="ImprimirLote" disabled="@(!PodeImprimir || _imprimindo)">
                         @if (_imprimindo)
                         {
                             <span class="spinner-border spinner-border-sm me-2"></span>
@@ -221,7 +241,7 @@
                     <div class="input-group">
                         <input class="form-control" @bind="_codigoAvulso" placeholder="Digite o código que falhou (ex: B016002003)" disabled="@_imprimindo" />
                         <button class="btn btn-outline-primary" @onclick="RegravarAvulso"
-                                disabled="@(_modeloId == 0 || _imprimindo || string.IsNullOrWhiteSpace(_codigoAvulso))">
+                                disabled="@(_modeloId == 0 || _estacao == null || _imprimindo || string.IsNullOrWhiteSpace(_codigoAvulso))">
                             Regravar
                         </button>
                     </div>
@@ -238,7 +258,13 @@
 
 @code {
     private List<Etiqueta> _modelos = [];
-    private Parametros _params = new();
+    private List<EstacaoImpressora> _estacoes = [];
+    private EstacaoImpressora? _estacao;
+    private int _estacaoId;
+    private List<Projeto> _projetos = [];
+    private Projeto? _projeto;
+    private int _projetoId;
+    private List<TagRegistro> _tagsPendentes = [];
     private int _modeloId;
 
     private int _modo; // 0 = sequência, 1 = arquivo
@@ -273,13 +299,34 @@
     private string _resultado = "";
     private bool _resultadoErro;
 
+    private bool PodeImprimir => _modeloId > 0 && _estacao != null && _lista.Count > 0;
+
     protected override void OnInitialized()
     {
         _modelos = Db.GetEtiquetas();
-        _params = Db.GetParametros();
+        _estacoes = Db.GetEstacoes();
+        _projetos = Db.GetProjetos();
+        if (_estacoes.Count == 1) { _estacaoId = _estacoes[0].Id; OnEstacaoChanged(); }
     }
 
-    private void OnModeloChanged() { }
+    private void OnEstacaoChanged()
+    {
+        _estacao = _estacaoId > 0 ? _estacoes.FirstOrDefault(e => e.Id == _estacaoId) : null;
+    }
+
+    private void OnProjetoChanged()
+    {
+        _projeto = _projetoId > 0 ? Db.GetProjeto(_projetoId) : null;
+        _resultado = ""; _lista = [];
+
+        if (_projeto == null) return;
+
+        _modeloId = _projeto.EtiquetaTemplateId;
+        _tagsPendentes = Db.GetTagsDoProjeto(_projeto.Id).Where(t => t.Status != StatusTag.Impressa).ToList();
+        _lista = _tagsPendentes.Select(t => t.NumeroSequencia.ToString()).ToList();
+        _msgOrigem = $"{_lista.Count} códigos pendentes carregados do projeto.";
+        _erroOrigem = false;
+    }
 
     private void GerarSequencia()
     {
@@ -335,7 +382,7 @@
     private async Task ImprimirLote()
     {
         var modelo = Db.GetEtiqueta(_modeloId);
-        if (modelo == null || _lista.Count == 0) return;
+        if (modelo == null || _lista.Count == 0 || _estacao == null) return;
 
         _imprimindo = true;
         _progresso = 0;
@@ -343,9 +390,10 @@
         StateHasChanged();
 
         var itens = _lista.Select(c => (CodigoBarras: c, DadoRfid: c)).ToList();
+        var estacao = _estacao;
 
         var resultado = await Task.Run(() =>
-            Printer.ImprimirLote(modelo, itens, _params, _intervalo, feitos =>
+            Printer.ImprimirLote(modelo, itens, estacao, _intervalo, feitos =>
             {
                 _progresso = feitos;
                 InvokeAsync(StateHasChanged);
@@ -356,19 +404,32 @@
         _resultado = resultado.Sucesso
             ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
             : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
+
+        // Se o lote veio de um Projeto, atualiza o TagRegistro de cada item conforme
+        // o que realmente foi impresso (o lote para no primeiro erro).
+        if (_projeto != null)
+        {
+            for (int i = 0; i < resultado.Impressos && i < _tagsPendentes.Count; i++)
+                Db.MarcarTag(_tagsPendentes[i].Id, StatusTag.Impressa, estacao.Id);
+
+            if (!resultado.Sucesso && resultado.Impressos < _tagsPendentes.Count)
+                Db.MarcarTag(_tagsPendentes[resultado.Impressos].Id, StatusTag.Erro, estacao.Id, resultado.Erro);
+
+            OnProjetoChanged(); // recarrega pendentes restantes
+        }
     }
 
     private async Task RegravarAvulso()
     {
         var modelo = Db.GetEtiqueta(_modeloId);
-        if (modelo == null || string.IsNullOrWhiteSpace(_codigoAvulso)) return;
+        if (modelo == null || string.IsNullOrWhiteSpace(_codigoAvulso) || _estacao == null) return;
 
         _imprimindo = true;
         _resultadoAvulso = "";
         StateHasChanged();
 
         var cod = _codigoAvulso.Trim();
-        var resultado = await Task.Run(() => Printer.Imprimir(modelo, cod, cod, _params));
+        var resultado = await Task.Run(() => Printer.Imprimir(modelo, cod, cod, _estacao));
 
         _imprimindo = false;
         _resultadoAvulsoErro = !resultado.Sucesso;

@@ -1,4 +1,4 @@
-namespace RfidEtiquetas.Data.Models;
+namespace RfidEtiquetas.Shared.Data.Models;
 
 public class Etiqueta
 {
