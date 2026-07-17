@@ -1,0 +1,133 @@
+@page "/projetos"
+@attribute [Authorize(Roles = "Administrador")]
+@inject AppDbContext Db
+
+<PageTitle>Projetos</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Projetos</h5>
+    <button class="btn btn-warning" @onclick="Novo"><i class="bi bi-plus-lg me-1"></i>Novo projeto</button>
+</div>
+
+@if (_editando)
+{
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label small">Código</label>
+                    <input class="form-control" @bind="_projeto.Codigo" />
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label small">Nome</label>
+                    <input class="form-control" @bind="_projeto.Nome" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Empresa</label>
+                    <select class="form-select" @bind="_projeto.EmpresaId">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var e in _empresas)
+                        {
+                            <option value="@e.Id">@e.Nome</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small">Modelo de tag</label>
+                    <select class="form-select" @bind="_projeto.EtiquetaTemplateId">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var m in _modelos)
+                        {
+                            <option value="@m.Id">@m.Modelo</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Sequência inicial</label>
+                    <input type="number" class="form-control" @bind="_projeto.SequenciaInicial" disabled="@(_projeto.Id > 0)" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Sequência final</label>
+                    <input type="number" class="form-control" @bind="_projeto.SequenciaFinal" disabled="@(_projeto.Id > 0)" />
+                </div>
+                @if (_projeto.Id > 0)
+                {
+                    <div class="col-12"><div class="form-text">A faixa de sequência não pode ser alterada após a criação (já existem tags vinculadas).</div></div>
+                }
+                <div class="col-12 d-flex gap-2 mt-2">
+                    <button class="btn btn-warning" @onclick="Salvar">Salvar</button>
+                    <button class="btn btn-outline-secondary" @onclick="() => _editando = false">Cancelar</button>
+                </div>
+                @if (!string.IsNullOrEmpty(_mensagem))
+                {
+                    <div class="col-12"><div class="alert alert-danger py-2 small mb-0">@_mensagem</div></div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<table class="table table-sm bg-white shadow-sm">
+    <thead><tr><th>Código</th><th>Nome</th><th>Modelo</th><th>Faixa</th><th>Status</th></tr></thead>
+    <tbody>
+        @foreach (var p in _lista)
+        {
+            var resumo = Db.GetResumoTags(p.Id);
+            <tr>
+                <td>@p.Codigo</td>
+                <td>@p.Nome</td>
+                <td>@p.EtiquetaTemplate?.Modelo</td>
+                <td>@p.SequenciaInicial – @p.SequenciaFinal</td>
+                <td>
+                    <span class="badge bg-success">@resumo.Impressas impressas</span>
+                    <span class="badge bg-secondary">@resumo.NaoImpressas pendentes</span>
+                    @if (resumo.Erros > 0)
+                    {
+                        <span class="badge bg-danger">@resumo.Erros erro(s)</span>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<Projeto> _lista = [];
+    private List<Empresa> _empresas = [];
+    private List<Etiqueta> _modelos = [];
+    private Projeto _projeto = new();
+    private bool _editando;
+    private string _mensagem = "";
+
+    protected override void OnInitialized()
+    {
+        _lista = Db.GetProjetos();
+        _empresas = Db.GetEmpresas();
+        _modelos = Db.GetEtiquetas();
+    }
+
+    private void Novo()
+    {
+        _projeto = new() { SequenciaInicial = 1, SequenciaFinal = 100 };
+        _mensagem = ""; _editando = true;
+    }
+
+    private void Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_projeto.Codigo) || string.IsNullOrWhiteSpace(_projeto.Nome)
+            || _projeto.EmpresaId == 0 || _projeto.EtiquetaTemplateId == 0)
+        {
+            _mensagem = "Preencha código, nome, empresa e modelo de tag.";
+            return;
+        }
+        if (_projeto.SequenciaFinal < _projeto.SequenciaInicial)
+        {
+            _mensagem = "A sequência final precisa ser maior ou igual à inicial.";
+            return;
+        }
+
+        Db.SalvarProjeto(_projeto);
+        _editando = false;
+        _lista = Db.GetProjetos();
+    }
+}

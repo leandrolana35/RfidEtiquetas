@@ -1,0 +1,324 @@
+@page "/imprimir"
+@attribute [Authorize]
+@inject AppDbContext Db
+@inject IPrinterService Printer
+@inject RfidEncoderService RfidEncoder
+@inject BarcodeService Barcode
+
+<PageTitle>Imprimir Etiqueta</PageTitle>
+
+<h5 class="mb-3">Imprimir Etiqueta RFID</h5>
+
+<div class="row g-3">
+    <!-- Configuração de impressão -->
+    <div class="col-md-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-dark text-white">Configuração</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Projeto <span class="text-muted">(opcional)</span></label>
+                    <select class="form-select" @bind="_projetoId" @bind:after="OnProjetoChanged">
+                        <option value="0">-- Impressão avulsa, sem projeto --</option>
+                        @foreach (var p in _projetos)
+                        {
+                            <option value="@p.Id">@p.Codigo — @p.Nome</option>
+                        }
+                    </select>
+                    @if (_projeto != null)
+                    {
+                        <div class="form-text">
+                            Próxima sequência pendente: <strong>@(_proximaTag?.NumeroSequencia.ToString() ?? "nenhuma — faixa concluída")</strong>
+                        </div>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Modelo de etiqueta</label>
+                    <select class="form-select" @bind="_modeloId" @bind:after="OnModeloChanged" disabled="@(_projeto != null)">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var e in _modelos)
+                        {
+                            <option value="@e.Id">@e.Modelo</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Estação / impressora</label>
+                    <select class="form-select" @bind="_estacaoId" @bind:after="OnEstacaoChanged">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var e in _estacoes)
+                        {
+                            <option value="@e.Id">@e.NomeEstacao</option>
+                        }
+                    </select>
+                    @if (_estacao != null)
+                    {
+                        <div class="form-text">
+                            <a href="configuracoes" class="text-decoration-none">alterar configuração desta estação</a>
+                        </div>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Código de barras</label>
+                    <input class="form-control" @bind="_codigoBarras" @bind:event="oninput" @bind:after="AtualizarPreview" placeholder="Digite o código" />
+                </div>
+
+                @if (_modelo?.RfidAtivo == true)
+                {
+                    <div class="mb-3">
+                        <label class="form-label d-flex justify-content-between">
+                            <span>Dado RFID <span class="badge bg-success">EPC</span></span>
+                            <small class="text-muted">@_rfidInfo</small>
+                        </label>
+                        <input class="form-control @(_rfidAviso != null ? "border-warning" : "")"
+                               @bind="_dadoRfid" @bind:event="oninput" @bind:after="AtualizarRfidInfo"
+                               placeholder="Texto ou número para gravar na tag" />
+                        @if (_rfidAviso != null)
+                        {
+                            <div class="form-text text-warning">
+                                <i class="bi bi-exclamation-triangle me-1"></i>@_rfidAviso
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(_dadoRfid) && _rfidAviso == null)
+                        {
+                            <div class="form-text text-muted font-monospace">
+                                HEX: @_rfidHex
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Quantidade</label>
+                    <input type="number" class="form-control" @bind="_quantidade" min="1" max="9999" disabled="@(_projeto != null)" />
+                </div>
+
+                <button class="btn btn-warning w-100" @onclick="ExecutarImpressao" disabled="@(!PodeImprimir || _imprimindo)">
+                    @if (_imprimindo)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-printer me-2"></i>
+                    }
+                    Imprimir @_quantidade etiqueta@(_quantidade > 1 ? "s" : "")
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_resultado))
+        {
+            <div class="alert @(_resultadoErro ? "alert-danger" : "alert-success") mt-3 py-2 mb-2">
+                @_resultado
+            </div>
+
+            <button class="btn btn-outline-primary w-100" @onclick="ExecutarImpressao" disabled="@(!PodeImprimir || _imprimindo)">
+                <i class="bi bi-arrow-repeat me-2"></i>Tentar novamente (regravar o mesmo código)
+            </button>
+            <div class="form-text">
+                Use se a impressora acusar erro (ex: multitag). A etiqueta com erro é descartada
+                e o código é gravado na próxima etiqueta.
+            </div>
+        }
+    </div>
+
+    <!-- Preview -->
+    <div class="col-md-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-dark text-white">
+                <i class="bi bi-eye me-1"></i>Preview da etiqueta
+            </div>
+            <div class="card-body">
+                @if (_modelo == null)
+                {
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-layout-text-sidebar fs-1"></i>
+                        <p>Selecione um modelo (ou um projeto) para ver o preview</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="label-preview position-relative bg-white border"
+                         style="width:100%;aspect-ratio:@_modelo.LarguraMm/@_modelo.AlturaMm;max-height:280px;overflow:hidden">
+
+                        @if (!string.IsNullOrEmpty(_modelo.Texto1))
+                        {
+                            <div style="position:absolute;left:@(_modelo.Texto1X / 10)%;top:@(_modelo.Texto1Y / 10)%;font-size:@(_modelo.Texto1Tam)px;white-space:nowrap">
+                                @_modelo.Texto1
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(_modelo.Texto2))
+                        {
+                            <div style="position:absolute;left:@(_modelo.Texto2X / 10)%;top:@(_modelo.Texto2Y / 10)%;font-size:@(_modelo.Texto2Tam)px;white-space:nowrap">
+                                @_modelo.Texto2
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(_modelo.Texto3))
+                        {
+                            <div style="position:absolute;left:@(_modelo.Texto3X / 10)%;top:@(_modelo.Texto3Y / 10)%;font-size:@(_modelo.Texto3Tam)px;white-space:nowrap">
+                                @_modelo.Texto3
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(_modelo.Texto4))
+                        {
+                            <div style="position:absolute;left:@(_modelo.Texto4X / 10)%;top:@(_modelo.Texto4Y / 10)%;font-size:@(_modelo.Texto4Tam)px;white-space:nowrap">
+                                @_modelo.Texto4
+                            </div>
+                        }
+
+                        @if (_modelo.BarImprimir && !string.IsNullOrEmpty(_barcodeBase64))
+                        {
+                            <div style="position:absolute;left:@(_modelo.BarCodX / 10)%;top:@(_modelo.BarCodY / 10)%">
+                                <img src="@_barcodeBase64" style="height:@(_modelo.BarAltura / 3)px" />
+                            </div>
+                        }
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="small text-muted fw-semibold mb-1">Comando ZPL que será enviado à impressora:</div>
+                        <pre class="bg-dark text-light p-2 rounded small" style="max-height:120px;overflow:auto">@_zplPreview</pre>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public int modeloId { get; set; }
+
+    private List<Etiqueta> _modelos = [];
+    private Etiqueta? _modelo;
+    private List<EstacaoImpressora> _estacoes = [];
+    private EstacaoImpressora? _estacao;
+    private int _estacaoId;
+    private List<Projeto> _projetos = [];
+    private Projeto? _projeto;
+    private int _projetoId;
+    private TagRegistro? _proximaTag;
+
+    private int _modeloId;
+    private string _codigoBarras = "";
+    private string _dadoRfid = "";
+    private int _quantidade = 1;
+    private bool _imprimindo;
+    private string _resultado = "";
+    private bool _resultadoErro;
+    private string _barcodeBase64 = "";
+    private string _zplPreview = "";
+    private string _rfidHex = "";
+    private string? _rfidAviso;
+    private string _rfidInfo = "";
+
+    private bool PodeImprimir => _modelo != null && _estacao != null && (_projeto == null || _proximaTag != null);
+
+    protected override void OnInitialized()
+    {
+        _modelos = Db.GetEtiquetas();
+        _estacoes = Db.GetEstacoes();
+        _projetos = Db.GetProjetos();
+
+        if (_estacoes.Count == 1) { _estacaoId = _estacoes[0].Id; OnEstacaoChanged(); }
+
+        if (modeloId > 0)
+        {
+            _modeloId = modeloId;
+            OnModeloChanged();
+        }
+    }
+
+    private void OnEstacaoChanged()
+    {
+        _estacao = _estacaoId > 0 ? _estacoes.FirstOrDefault(e => e.Id == _estacaoId) : null;
+    }
+
+    private void OnModeloChanged()
+    {
+        _modelo = _modeloId > 0 ? Db.GetEtiqueta(_modeloId) : null;
+        if (_modelo != null)
+        {
+            _quantidade = _modelo.Quantidade;
+            AtualizarPreview();
+        }
+    }
+
+    private void OnProjetoChanged()
+    {
+        _projeto = _projetoId > 0 ? Db.GetProjeto(_projetoId) : null;
+        if (_projeto == null) return;
+
+        _modeloId = _projeto.EtiquetaTemplateId;
+        OnModeloChanged();
+        CarregarProximaTag();
+    }
+
+    private void CarregarProximaTag()
+    {
+        if (_projeto == null) return;
+        _proximaTag = Db.ProximaTagPendente(_projeto.Id);
+        _codigoBarras = _proximaTag?.NumeroSequencia.ToString() ?? "";
+        _dadoRfid = _codigoBarras;
+        _quantidade = 1;
+        AtualizarPreview();
+    }
+
+    private void AtualizarPreview()
+    {
+        if (_modelo == null) return;
+
+        if (!string.IsNullOrEmpty(_codigoBarras))
+            _barcodeBase64 = Barcode.GerarBase64(_modelo.BarPrefixo + _codigoBarras + _modelo.BarSufixo, _modelo.BarTipo);
+
+        AtualizarRfidInfo();
+        if (Printer is RfidEtiquetas.Local.Services.Printing.ZplPrinterService zplPrinter && _estacao != null)
+            _zplPreview = zplPrinter.GerarZplPreview(_modelo, _codigoBarras, _dadoRfid, _estacao.ModeloImpressora);
+    }
+
+    private void AtualizarRfidInfo()
+    {
+        if (_modelo == null || !_modelo.RfidAtivo || string.IsNullOrEmpty(_dadoRfid))
+        {
+            _rfidAviso = null; _rfidHex = ""; _rfidInfo = "";
+            return;
+        }
+
+        var encoding = (RfidEncoderService.EncodingTipo)_modelo.RfidEncodingTipo;
+        var alinhamento = (RfidEncoderService.Alinhamento)_modelo.RfidAlinhamento;
+        var resultado = RfidEncoder.Codificar(_modelo.RfidPrefixo + _dadoRfid, _modelo.RfidTamanhoBits, encoding, alinhamento);
+        _rfidHex = resultado.HexData;
+        _rfidAviso = resultado.Aviso;
+
+        int bitsNecessarios = RfidEncoder.CalcularBitsNecessarios(_modelo.RfidPrefixo + _dadoRfid, encoding);
+        _rfidInfo = $"{bitsNecessarios}/{_modelo.RfidTamanhoBits} bits";
+    }
+
+    private async Task ExecutarImpressao()
+    {
+        if (_modelo == null || _estacao == null) return;
+        _imprimindo = true; _resultado = ""; StateHasChanged();
+
+        _modelo.Quantidade = _quantidade;
+        var estacao = _estacao;
+        var resultado = await Task.Run(() =>
+            Printer.Imprimir(_modelo, _codigoBarras, _dadoRfid, estacao));
+
+        _imprimindo = false;
+        _resultadoErro = !resultado.Sucesso;
+        var destino = estacao.TipoConexao == TipoConexaoImpressora.Rede ? $"{estacao.ImpressoraIp}:{estacao.ImpressoraPorta}" : estacao.PortaCom;
+        _resultado = resultado.Sucesso
+            ? $"Impressão enviada com sucesso para {destino}."
+            : $"Erro: {resultado.Erro}";
+
+        if (resultado.AvisoRfid != null)
+            _resultado += $"\nAviso RFID: {resultado.AvisoRfid}";
+
+        if (_proximaTag != null)
+        {
+            Db.MarcarTag(_proximaTag.Id, resultado.Sucesso ? StatusTag.Impressa : StatusTag.Erro, estacao.Id, resultado.Erro);
+            CarregarProximaTag();
+        }
+    }
+}

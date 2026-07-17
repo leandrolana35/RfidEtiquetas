@@ -1,0 +1,66 @@
+@page "/empresas"
+@attribute [Authorize(Roles = "Administrador")]
+@inject AppDbContext Db
+
+<PageTitle>Empresas</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Empresas</h5>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label small">Nome</label>
+                <input class="form-control" @bind="_novoNome" placeholder="Ex: Afixcode" />
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-warning" @onclick="Adicionar" disabled="@string.IsNullOrWhiteSpace(_novoNome)">
+                    <i class="bi bi-plus-lg me-1"></i>Adicionar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<table class="table table-sm bg-white shadow-sm">
+    <thead><tr><th>Nome</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+        @foreach (var e in _lista)
+        {
+            <tr>
+                <td>@e.Nome</td>
+                <td>@(e.Ativo ? "Ativa" : "Inativa")</td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => AlternarAtivo(e)">
+                        @(e.Ativo ? "Desativar" : "Ativar")
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<Empresa> _lista = [];
+    private string _novoNome = "";
+
+    protected override void OnInitialized() => Carregar();
+
+    private void Carregar() => _lista = Db.GetEmpresas();
+
+    private void Adicionar()
+    {
+        Db.SaveEmpresa(new Empresa { Nome = _novoNome.Trim() });
+        _novoNome = "";
+        Carregar();
+    }
+
+    private void AlternarAtivo(Empresa e)
+    {
+        e.Ativo = !e.Ativo;
+        Db.SaveEmpresa(e);
+        Carregar();
+    }
+}

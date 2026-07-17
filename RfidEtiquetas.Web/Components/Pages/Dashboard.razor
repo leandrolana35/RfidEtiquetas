@@ -1,0 +1,57 @@
+@page "/"
+@attribute [Authorize]
+@inject AppDbContext Db
+
+<PageTitle>Dashboard</PageTitle>
+
+<h4 class="mb-4">Dashboard</h4>
+
+@if (_projetos.Count == 0)
+{
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-folder2-open fs-1"></i>
+        <p class="mt-2">Nenhum projeto cadastrado ainda.</p>
+        <a href="projetos" class="btn btn-warning">Cadastrar projeto</a>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var p in _projetos)
+        {
+            var resumo = Db.GetResumoTags(p.Id);
+            var pct = resumo.Total == 0 ? 0 : resumo.Impressas * 100 / resumo.Total;
+            <div class="col-md-6 col-lg-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h6 class="card-title">@p.Codigo — @p.Nome</h6>
+                        <div class="small text-muted mb-2">@p.EtiquetaTemplate?.Modelo</div>
+                        <div class="progress mb-2" style="height:18px">
+                            <div class="progress-bar bg-success" style="width:@(pct)%">@pct%</div>
+                        </div>
+                        <div class="d-flex justify-content-between small">
+                            <span class="text-success"><i class="bi bi-check-circle me-1"></i>@resumo.Impressas impressas</span>
+                            <span class="text-muted">@resumo.NaoImpressas pendentes</span>
+                            @if (resumo.Erros > 0)
+                            {
+                                <span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>@resumo.Erros erro(s)</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="projetos" class="btn btn-sm btn-outline-primary">Ver projeto</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Projeto> _projetos = [];
+
+    protected override void OnInitialized()
+    {
+        _projetos = Db.GetProjetos();
+    }
+}
