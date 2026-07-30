@@ -32,6 +32,27 @@
                     <i class="bi bi-gear me-2"></i>Configurações
                 </NavLink>
             </li>
+            <AuthorizeView Context="auth">
+                @if (auth.User.FindFirst("Perfil")?.Value == "Administrador")
+                {
+                    <li class="mt-3 mb-1 small text-muted text-uppercase px-2">Gestão</li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white rounded" href="projetos">
+                            <i class="bi bi-folder me-2"></i>Projetos
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white rounded" href="usuarios">
+                            <i class="bi bi-people me-2"></i>Usuários
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white rounded" href="empresas">
+                            <i class="bi bi-building me-2"></i>Empresas
+                        </NavLink>
+                    </li>
+                }
+            </AuthorizeView>
         </ul>
         <div class="mt-auto">
             <AuthorizeView Context="auth">
