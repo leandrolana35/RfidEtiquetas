@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>RfidEtiquetas.Web</RootNamespace>
+    <UserSecretsId>rfidetiquetas-web-dev</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

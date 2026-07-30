@@ -6,6 +6,9 @@
     // dentro de um componente Blazor Server já conectado por SignalR).
     protected override void OnInitialized()
     {
-        Nav.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Nav.Uri)}", forceLoad: true);
+        // Precisa ser um caminho relativo (não a URL absoluta) — LocalRedirect
+        // no Login.cshtml.cs rejeita URLs com host/esquema por segurança.
+        var caminhoRelativo = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+        Nav.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(caminhoRelativo)}", forceLoad: true);
     }
 }

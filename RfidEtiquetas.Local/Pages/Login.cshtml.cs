@@ -35,6 +35,6 @@ public class LoginModel : PageModel
             return Page();
         }
 
-        return LocalRedirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
+        return LocalRedirect(!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
     }
 }

@@ -46,6 +46,13 @@ builder.Services.AddSingleton<LoteService>();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+    await SeedData.EnsureSeedAsync(db, userManager);
+}
+
 app.UseStaticFiles();
 app.UseRouting();
 
