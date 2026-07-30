@@ -11,3 +11,6 @@ Banco.db-wal
 .vs/
 .idea/
 *.user
+
+# Logs de execução local (ferramenta de teste)
+*.log
