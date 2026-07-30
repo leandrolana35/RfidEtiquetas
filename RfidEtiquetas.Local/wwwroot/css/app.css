@@ -8,6 +8,24 @@ body {
 .card { border-radius: 8px; }
 .card-header { border-radius: 8px 8px 0 0 !important; font-weight: 600; }
 
+.etiqueta-preview-canvas {
+    background-image: linear-gradient(#eee 1px, transparent 1px), linear-gradient(90deg, #eee 1px, transparent 1px);
+    background-size: 20px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+}
+.etiqueta-preview-canvas .preview-item {
+    position: absolute;
+    cursor: move;
+    touch-action: none;
+    user-select: none;
+    white-space: nowrap;
+    line-height: 1;
+    padding: 1px 2px;
+    border: 1px dashed transparent;
+}
+.etiqueta-preview-canvas .preview-item:hover { border-color: #0d6efd; }
+.etiqueta-preview-canvas .preview-item.dragging { border-color: #ffc107; background: rgba(255,193,7,.15); z-index: 10; }
+
 pre { font-size: 11px; white-space: pre-wrap; word-break: break-all; }
 
 .spinner-border-sm { width: 1rem; height: 1rem; }

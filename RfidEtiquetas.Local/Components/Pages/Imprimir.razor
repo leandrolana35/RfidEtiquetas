@@ -3,7 +3,6 @@
 @inject AppDbContext Db
 @inject IPrinterService Printer
 @inject RfidEncoderService RfidEncoder
-@inject BarcodeService Barcode
 
 <PageTitle>Imprimir Etiqueta</PageTitle>
 
@@ -141,41 +140,7 @@
                 }
                 else
                 {
-                    <div class="label-preview position-relative bg-white border"
-                         style="width:100%;aspect-ratio:@_modelo.LarguraMm/@_modelo.AlturaMm;max-height:280px;overflow:hidden">
-
-                        @if (!string.IsNullOrEmpty(_modelo.Texto1))
-                        {
-                            <div style="position:absolute;left:@(_modelo.Texto1X / 10)%;top:@(_modelo.Texto1Y / 10)%;font-size:@(_modelo.Texto1Tam)px;white-space:nowrap">
-                                @_modelo.Texto1
-                            </div>
-                        }
-                        @if (!string.IsNullOrEmpty(_modelo.Texto2))
-                        {
-                            <div style="position:absolute;left:@(_modelo.Texto2X / 10)%;top:@(_modelo.Texto2Y / 10)%;font-size:@(_modelo.Texto2Tam)px;white-space:nowrap">
-                                @_modelo.Texto2
-                            </div>
-                        }
-                        @if (!string.IsNullOrEmpty(_modelo.Texto3))
-                        {
-                            <div style="position:absolute;left:@(_modelo.Texto3X / 10)%;top:@(_modelo.Texto3Y / 10)%;font-size:@(_modelo.Texto3Tam)px;white-space:nowrap">
-                                @_modelo.Texto3
-                            </div>
-                        }
-                        @if (!string.IsNullOrEmpty(_modelo.Texto4))
-                        {
-                            <div style="position:absolute;left:@(_modelo.Texto4X / 10)%;top:@(_modelo.Texto4Y / 10)%;font-size:@(_modelo.Texto4Tam)px;white-space:nowrap">
-                                @_modelo.Texto4
-                            </div>
-                        }
-
-                        @if (_modelo.BarImprimir && !string.IsNullOrEmpty(_barcodeBase64))
-                        {
-                            <div style="position:absolute;left:@(_modelo.BarCodX / 10)%;top:@(_modelo.BarCodY / 10)%">
-                                <img src="@_barcodeBase64" style="height:@(_modelo.BarAltura / 3)px" />
-                            </div>
-                        }
-                    </div>
+                    <EtiquetaPreview Modelo="_modelo" CodigoBarras="_codigoBarras" DadoRfid="_dadoRfid" OnPosicaoAlterada="AtualizarPreview" />
 
                     <div class="mt-3">
                         <div class="small text-muted fw-semibold mb-1">Comando ZPL que será enviado à impressora:</div>
@@ -207,7 +172,6 @@
     private bool _imprimindo;
     private string _resultado = "";
     private bool _resultadoErro;
-    private string _barcodeBase64 = "";
     private string _zplPreview = "";
     private string _rfidHex = "";
     private string? _rfidAviso;
@@ -268,9 +232,6 @@
     private void AtualizarPreview()
     {
         if (_modelo == null) return;
-
-        if (!string.IsNullOrEmpty(_codigoBarras))
-            _barcodeBase64 = Barcode.GerarBase64(_modelo.BarPrefixo + _codigoBarras + _modelo.BarSufixo, _modelo.BarTipo);
 
         AtualizarRfidInfo();
         if (Printer is RfidEtiquetas.Local.Services.Printing.ZplPrinterService zplPrinter && _estacao != null)

@@ -1,0 +1,127 @@
+@using System.Globalization
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject BarcodeService Barcode
+
+<div class="etiqueta-preview-canvas position-relative bg-white border" @ref="_canvasRef"
+     style="width:@(LarguraPx)px;height:@(AlturaPx)px">
+
+    @if (!string.IsNullOrEmpty(Modelo.Texto1))
+    {
+        <div class="preview-item" data-drag-id="texto1" style="left:@(Px(Modelo.Texto1X).ToString(CultureInfo.InvariantCulture))px;top:@(Px(Modelo.Texto1Y).ToString(CultureInfo.InvariantCulture))px;font-size:@(FontePx(Modelo.Texto1Tam))px">@Modelo.Texto1</div>
+    }
+    @if (!string.IsNullOrEmpty(Modelo.Texto2))
+    {
+        <div class="preview-item" data-drag-id="texto2" style="left:@(Px(Modelo.Texto2X).ToString(CultureInfo.InvariantCulture))px;top:@(Px(Modelo.Texto2Y).ToString(CultureInfo.InvariantCulture))px;font-size:@(FontePx(Modelo.Texto2Tam))px">@Modelo.Texto2</div>
+    }
+    @if (!string.IsNullOrEmpty(Modelo.Texto3))
+    {
+        <div class="preview-item" data-drag-id="texto3" style="left:@(Px(Modelo.Texto3X).ToString(CultureInfo.InvariantCulture))px;top:@(Px(Modelo.Texto3Y).ToString(CultureInfo.InvariantCulture))px;font-size:@(FontePx(Modelo.Texto3Tam))px">@Modelo.Texto3</div>
+    }
+    @if (!string.IsNullOrEmpty(Modelo.Texto4))
+    {
+        <div class="preview-item" data-drag-id="texto4" style="left:@(Px(Modelo.Texto4X).ToString(CultureInfo.InvariantCulture))px;top:@(Px(Modelo.Texto4Y).ToString(CultureInfo.InvariantCulture))px;font-size:@(FontePx(Modelo.Texto4Tam))px">@Modelo.Texto4</div>
+    }
+    @if (Modelo.RfidImprimirValor && !string.IsNullOrEmpty(ValorPreview))
+    {
+        <div class="preview-item" data-drag-id="rfidvalor" style="left:@(Px(Modelo.RfidValorX).ToString(CultureInfo.InvariantCulture))px;top:@(Px(Modelo.RfidValorY).ToString(CultureInfo.InvariantCulture))px;font-size:@(FontePx(Modelo.RfidValorTam))px">@(Modelo.RfidPrefixo + ValorPreview)</div>
+    }
+    @if (Modelo.BarImprimir && !string.IsNullOrEmpty(_barcodeBase64))
+    {
+        <img class="preview-item" data-drag-id="barcode"
+             style="left:@(Px(Modelo.BarCodX).ToString(CultureInfo.InvariantCulture))px;top:@(Px(Modelo.BarCodY).ToString(CultureInfo.InvariantCulture))px;height:@(Math.Max(10, Px(Modelo.BarAltura)).ToString(CultureInfo.InvariantCulture))px"
+             src="@_barcodeBase64" />
+    }
+    @if (Modelo.LogoImprimir && !string.IsNullOrWhiteSpace(Modelo.LogoArquivo))
+    {
+        <div class="preview-item bg-secondary bg-opacity-25 border d-flex align-items-center justify-content-center text-muted"
+             data-drag-id="logo"
+             style="left:@(Px(Modelo.LogoX).ToString(CultureInfo.InvariantCulture))px;top:@(Px(Modelo.LogoY).ToString(CultureInfo.InvariantCulture))px;width:@(Math.Max(16, Modelo.LogoLargura * PxPerMm).ToString(CultureInfo.InvariantCulture))px;height:@(Math.Max(16, Modelo.LogoAltura * PxPerMm).ToString(CultureInfo.InvariantCulture))px">
+            <i class="bi bi-image"></i>
+        </div>
+    }
+</div>
+<div class="small text-muted mt-1">
+    @Modelo.LarguraMm × @Modelo.AlturaMm mm — arraste os elementos para reposicionar
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Etiqueta Modelo { get; set; } = null!;
+    [Parameter] public string CodigoBarras { get; set; } = "";
+    [Parameter] public string DadoRfid { get; set; } = "";
+    [Parameter] public EventCallback OnPosicaoAlterada { get; set; }
+
+    // Referência: DPI usado pelos dois modelos de impressora hoje (203dpi = 8 dots/mm).
+    // Se um perfil futuro usar DPI diferente, o preview fica levemente aproximado
+    // para aquele modelo especificamente — aceitável para fins de posicionamento visual.
+    private const int DotsPorMm = 8;
+
+    private ElementReference _canvasRef;
+    private DotNetObjectReference<EtiquetaPreview>? _dotNetRef;
+    private string _barcodeBase64 = "";
+    private string _ultimoCodigoRenderizado = "";
+
+    private string ValorPreview => string.IsNullOrEmpty(DadoRfid) ? "" : DadoRfid;
+
+    // Escala para caber num espaço confortável de visualização, preservando a proporção real.
+    private double PxPerMm => Math.Clamp(380.0 / Math.Max(1, Modelo.LarguraMm), 1.5, 10.0);
+    private int LarguraPx => (int)Math.Round(Modelo.LarguraMm * PxPerMm);
+    private int AlturaPx => (int)Math.Round(Modelo.AlturaMm * PxPerMm);
+    private double Px(int dots) => dots / (double)DotsPorMm * PxPerMm;
+    private double FontePx(int tam) => Math.Max(6, Px(tam));
+
+    protected override void OnParametersSet()
+    {
+        var chave = Modelo.BarPrefixo + CodigoBarras + Modelo.BarSufixo;
+        if (Modelo.BarImprimir && !string.IsNullOrWhiteSpace(CodigoBarras) && chave != _ultimoCodigoRenderizado)
+        {
+            _barcodeBase64 = Barcode.GerarBase64(chave, Modelo.BarTipo);
+            _ultimoCodigoRenderizado = chave;
+        }
+        else if (!Modelo.BarImprimir || string.IsNullOrWhiteSpace(CodigoBarras))
+        {
+            _barcodeBase64 = "";
+            _ultimoCodigoRenderizado = "";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("etiquetaPreview.init", _canvasRef, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public Task OnElementMoved(string dragId, double leftPx, double topPx)
+    {
+        int x = (int)Math.Round(leftPx / PxPerMm * DotsPorMm);
+        int y = (int)Math.Round(topPx / PxPerMm * DotsPorMm);
+
+        switch (dragId)
+        {
+            case "texto1": Modelo.Texto1X = x; Modelo.Texto1Y = y; break;
+            case "texto2": Modelo.Texto2X = x; Modelo.Texto2Y = y; break;
+            case "texto3": Modelo.Texto3X = x; Modelo.Texto3Y = y; break;
+            case "texto4": Modelo.Texto4X = x; Modelo.Texto4Y = y; break;
+            case "barcode": Modelo.BarCodX = x; Modelo.BarCodY = y; break;
+            case "rfidvalor": Modelo.RfidValorX = x; Modelo.RfidValorY = y; break;
+            case "logo": Modelo.LogoX = x; Modelo.LogoY = y; break;
+        }
+
+        StateHasChanged();
+        return OnPosicaoAlterada.InvokeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dotNetRef != null)
+        {
+            try { await JS.InvokeVoidAsync("etiquetaPreview.destroy", _canvasRef); }
+            catch (JSDisconnectedException) { }
+            _dotNetRef.Dispose();
+        }
+    }
+}

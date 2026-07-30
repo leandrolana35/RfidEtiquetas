@@ -25,7 +25,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Modelo de etiqueta</label>
-                    <select class="form-select" @bind="_modeloId" disabled="@(_projeto != null)">
+                    <select class="form-select" @bind="_modeloId" @bind:after="CarregarModelo" disabled="@(_projeto != null)">
                         <option value="0">-- Selecione --</option>
                         @foreach (var e in _modelos)
                         {
@@ -46,19 +46,11 @@
             </div>
         </div>
 
-        <div class="card shadow-sm border-0 mt-3">
-            <div class="card-header bg-dark text-white">2. Origem dos códigos</div>
-            <div class="card-body">
-                @if (_projeto != null)
-                {
-                    <div class="alert alert-info py-2 small mb-0">
-                        <i class="bi bi-info-circle me-1"></i>
-                        Os códigos vêm da faixa cadastrada no projeto (@_tagsPendentes.Count pendentes de
-                        @(_projeto.SequenciaFinal - _projeto.SequenciaInicial + 1)).
-                    </div>
-                }
-                else
-                {
+        @if (_projeto == null)
+        {
+            <div class="card shadow-sm border-0 mt-3">
+                <div class="card-header bg-dark text-white">2. Origem dos códigos</div>
+                <div class="card-body">
                     <ul class="nav nav-pills mb-3">
                         <li class="nav-item">
                             <button class="nav-link @(_modo == 0 ? "active" : "")" @onclick="() => _modo = 0">
@@ -141,117 +133,288 @@
                             }
                         </div>
                     }
-                }
 
-                @if (!string.IsNullOrEmpty(_msgOrigem))
-                {
-                    <div class="alert @(_erroOrigem ? "alert-danger" : "alert-info") py-2 mt-2 mb-0 small">@_msgOrigem</div>
-                }
+                    @if (!string.IsNullOrEmpty(_msgOrigem))
+                    {
+                        <div class="alert @(_erroOrigem ? "alert-danger" : "alert-info") py-2 mt-2 mb-0 small">@_msgOrigem</div>
+                    }
+                </div>
             </div>
-        </div>
+        }
+        else
+        {
+            <div class="card shadow-sm border-0 mt-3">
+                <div class="card-header bg-dark text-white">2. Escolher a faixa</div>
+                <div class="card-body">
+                    <div class="row g-2 align-items-end mb-2">
+                        <div class="col-6">
+                            <label class="form-label small">Sequência de</label>
+                            <input type="number" class="form-control" @bind="_faixaDe" placeholder="@_projeto.SequenciaInicial" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">até</label>
+                            <input type="number" class="form-control" @bind="_faixaAte" placeholder="@_projeto.SequenciaFinal" />
+                        </div>
+                        <div class="col-12">
+                            <button class="btn btn-outline-primary w-100" @onclick="SelecionarFaixa">
+                                <i class="bi bi-list-ol me-1"></i>Selecionar tags dessa faixa
+                            </button>
+                        </div>
+                    </div>
+
+                    <label class="form-label small d-block">Ou selecionar as próximas pendentes:</label>
+                    <div class="d-flex gap-2 flex-wrap mb-2">
+                        @foreach (var n in new[] { 100, 200, 500, 1000 })
+                        {
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => SelecionarProximasPendentes(n)">
+                                Próximas @n
+                            </button>
+                        }
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => _selecionadas.Clear()">Limpar seleção</button>
+                    </div>
+
+                    <hr />
+                    <label class="form-label small">Filtrar lista por status</label>
+                    <select class="form-select form-select-sm" @bind="_filtroStatus">
+                        <option value="pendentes">Não impressas</option>
+                        <option value="impressas">Impressas</option>
+                        <option value="erros">Com erro</option>
+                        <option value="todas">Todas</option>
+                    </select>
+                </div>
+            </div>
+        }
     </div>
 
     <div class="col-md-7">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                <span>3. Lista de códigos</span>
-                @if (_lista.Count > 0)
-                {
-                    <span class="badge bg-warning text-dark">@_lista.Count códigos</span>
-                }
-            </div>
-            <div class="card-body">
-                @if (_lista.Count == 0)
-                {
-                    <div class="text-center text-muted py-4">
-                        <i class="bi bi-list-ul fs-1"></i>
-                        <p>Escolha um projeto, gere uma sequência ou importe uma planilha</p>
-                    </div>
-                }
-                else
-                {
-                    <div style="max-height:240px;overflow:auto" class="border rounded mb-3">
-                        <table class="table table-sm table-striped mb-0">
-                            <thead class="sticky-top bg-light">
-                                <tr><th style="width:50px">#</th><th>Código (RFID + impresso)</th></tr>
-                            </thead>
-                            <tbody>
-                                @for (int i = 0; i < _lista.Count && i < 500; i++)
-                                {
-                                    <tr><td class="text-muted">@(i + 1)</td><td class="font-monospace">@_lista[i]</td></tr>
-                                }
-                            </tbody>
-                        </table>
-                        @if (_lista.Count > 500)
-                        {
-                            <div class="small text-muted p-2">... e mais @(_lista.Count - 500) (todos serão impressos)</div>
-                        }
-                    </div>
-
-                    @if (_imprimindo)
+        @if (_projeto != null)
+        {
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <span>3. Tags do projeto</span>
+                    <span class="badge bg-warning text-dark">@_selecionadas.Count selecionadas</span>
+                </div>
+                <div class="card-body">
+                    @{ var filtradas = TagsFiltradas().ToList(); }
+                    @if (_todasTags.Count == 0)
                     {
-                        <div class="mb-2">
-                            <div class="d-flex justify-content-between small mb-1">
-                                <span>Imprimindo...</span>
-                                <span>@_progresso / @_lista.Count</span>
-                            </div>
-                            <div class="progress" style="height:20px">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark"
-                                     style="width:@(_lista.Count > 0 ? (_progresso * 100 / _lista.Count) : 0)%">
-                                    @(_lista.Count > 0 ? (_progresso * 100 / _lista.Count) : 0)%
-                                </div>
-                            </div>
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-list-ul fs-1"></i>
+                            <p>Este projeto ainda não tem tags (verifique a faixa cadastrada).</p>
                         </div>
                     }
-
-                    <div class="mb-2">
-                        <label class="form-label small">Intervalo entre etiquetas (milissegundos)</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" @bind="_intervalo" min="0" max="5000" step="100" disabled="@_imprimindo" />
-                            <span class="input-group-text">ms</span>
+                    else
+                    {
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox"
+                                   checked="@(filtradas.Count > 0 && filtradas.All(t => _selecionadas.Contains(t.Id)))"
+                                   @onchange="@(e => SelecionarTodasFiltradas((bool)e.Value!, filtradas))" id="selTudo" />
+                            <label class="form-check-label small" for="selTudo">Selecionar todas as @filtradas.Count exibidas abaixo</label>
                         </div>
-                        <div class="form-text">
-                            Maior = mais devagar. Sugestão: 1500 ms. (1000 ms = 1 segundo)
-                        </div>
-                    </div>
 
-                    <button class="btn btn-warning w-100" @onclick="ImprimirLote" disabled="@(!PodeImprimir || _imprimindo)">
+                        <div style="max-height:320px;overflow:auto" class="border rounded mb-3">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead class="sticky-top bg-light">
+                                    <tr><th style="width:36px"></th><th>Sequência</th><th>Status</th><th>Impressa em</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var t in filtradas.Take(300))
+                                    {
+                                        <tr>
+                                            <td>
+                                                <input class="form-check-input" type="checkbox" checked="@_selecionadas.Contains(t.Id)"
+                                                       @onchange="@(e => Alternar(t.Id, (bool)e.Value!))" />
+                                            </td>
+                                            <td class="font-monospace">@t.NumeroSequencia</td>
+                                            <td>
+                                                @switch (t.Status)
+                                                {
+                                                    case StatusTag.Impressa:
+                                                        <span class="badge bg-success">Impressa</span>
+                                                        break;
+                                                    case StatusTag.Erro:
+                                                        <span class="badge bg-danger">Erro</span>
+                                                        break;
+                                                    default:
+                                                        <span class="badge bg-secondary">Não impressa</span>
+                                                        break;
+                                                }
+                                            </td>
+                                            <td class="small text-muted">@(t.DataImpressao?.ToLocalTime().ToString("dd/MM HH:mm") ?? "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                            @if (filtradas.Count > 300)
+                            {
+                                <div class="small text-muted p-2">Mostrando as primeiras 300 de @filtradas.Count (os botões "Próximas N" e "Selecionar faixa" funcionam mesmo além do que está visível aqui).</div>
+                            }
+                        </div>
+
                         @if (_imprimindo)
                         {
-                            <span class="spinner-border spinner-border-sm me-2"></span>
-                            <span>Imprimindo @_progresso de @_lista.Count...</span>
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span>Imprimindo...</span>
+                                    <span>@_progresso / @_selecionadas.Count</span>
+                                </div>
+                                <div class="progress" style="height:20px">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark"
+                                         style="width:@(_selecionadas.Count > 0 ? (_progresso * 100 / _selecionadas.Count) : 0)%">
+                                        @(_selecionadas.Count > 0 ? (_progresso * 100 / _selecionadas.Count) : 0)%
+                                    </div>
+                                </div>
+                            </div>
                         }
-                        else
-                        {
-                            <i class="bi bi-printer me-2"></i>
-                            <span>Imprimir/gravar @_lista.Count etiquetas</span>
-                        }
-                    </button>
 
-                    @if (!string.IsNullOrEmpty(_resultado))
-                    {
-                        <div class="alert @(_resultadoErro ? "alert-danger" : "alert-success") py-2 mt-2 mb-0">@_resultado</div>
-                    }
-                }
+                        <div class="mb-2">
+                            <label class="form-label small">Intervalo entre etiquetas (milissegundos)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" @bind="_intervalo" min="0" max="5000" step="100" disabled="@_imprimindo" />
+                                <span class="input-group-text">ms</span>
+                            </div>
+                        </div>
 
-                <hr />
-                <div class="bg-light rounded p-2">
-                    <label class="form-label small fw-semibold mb-1">
-                        <i class="bi bi-arrow-repeat me-1"></i>Regravar um código avulso
-                    </label>
-                    <div class="input-group">
-                        <input class="form-control" @bind="_codigoAvulso" placeholder="Digite o código que falhou (ex: B016002003)" disabled="@_imprimindo" />
-                        <button class="btn btn-outline-primary" @onclick="RegravarAvulso"
-                                disabled="@(_modeloId == 0 || _estacao == null || _imprimindo || string.IsNullOrWhiteSpace(_codigoAvulso))">
-                            Regravar
+                        <button class="btn btn-warning w-100" @onclick="ImprimirSelecionadas" disabled="@(_selecionadas.Count == 0 || _estacao == null || _imprimindo)">
+                            @if (_imprimindo)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>Imprimindo @_progresso de @_selecionadas.Count...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-printer me-2"></i>
+                                <span>Imprimir/regravar @_selecionadas.Count selecionadas</span>
+                            }
                         </button>
-                    </div>
-                    <div class="form-text">Para retentar um código que deu erro (ex: multitag), sem refazer o lote todo.</div>
-                    @if (!string.IsNullOrEmpty(_resultadoAvulso))
-                    {
-                        <div class="alert @(_resultadoAvulsoErro ? "alert-danger" : "alert-success") py-2 mt-2 mb-0 small">@_resultadoAvulso</div>
+
+                        @if (!string.IsNullOrEmpty(_resultado))
+                        {
+                            <div class="alert @(_resultadoErro ? "alert-danger" : "alert-success") py-2 mt-2 mb-0">@_resultado</div>
+                        }
                     }
                 </div>
+            </div>
+        }
+        else
+        {
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <span>3. Lista de códigos</span>
+                    @if (_lista.Count > 0)
+                    {
+                        <span class="badge bg-warning text-dark">@_lista.Count códigos</span>
+                    }
+                </div>
+                <div class="card-body">
+                    @if (_lista.Count == 0)
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-list-ul fs-1"></i>
+                            <p>Escolha um projeto, gere uma sequência ou importe uma planilha</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="max-height:240px;overflow:auto" class="border rounded mb-3">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead class="sticky-top bg-light">
+                                    <tr><th style="width:50px">#</th><th>Código (RFID + impresso)</th></tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < _lista.Count && i < 500; i++)
+                                    {
+                                        <tr><td class="text-muted">@(i + 1)</td><td class="font-monospace">@_lista[i]</td></tr>
+                                    }
+                                </tbody>
+                            </table>
+                            @if (_lista.Count > 500)
+                            {
+                                <div class="small text-muted p-2">... e mais @(_lista.Count - 500) (todos serão impressos)</div>
+                            }
+                        </div>
+
+                        @if (_imprimindo)
+                        {
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span>Imprimindo...</span>
+                                    <span>@_progresso / @_lista.Count</span>
+                                </div>
+                                <div class="progress" style="height:20px">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark"
+                                         style="width:@(_lista.Count > 0 ? (_progresso * 100 / _lista.Count) : 0)%">
+                                        @(_lista.Count > 0 ? (_progresso * 100 / _lista.Count) : 0)%
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="mb-2">
+                            <label class="form-label small">Intervalo entre etiquetas (milissegundos)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" @bind="_intervalo" min="0" max="5000" step="100" disabled="@_imprimindo" />
+                                <span class="input-group-text">ms</span>
+                            </div>
+                            <div class="form-text">
+                                Maior = mais devagar. Sugestão: 1500 ms. (1000 ms = 1 segundo)
+                            </div>
+                        </div>
+
+                        <button class="btn btn-warning w-100" @onclick="ImprimirLote" disabled="@(!PodeImprimir || _imprimindo)">
+                            @if (_imprimindo)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>Imprimindo @_progresso de @_lista.Count...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-printer me-2"></i>
+                                <span>Imprimir/gravar @_lista.Count etiquetas</span>
+                            }
+                        </button>
+
+                        @if (!string.IsNullOrEmpty(_resultado))
+                        {
+                            <div class="alert @(_resultadoErro ? "alert-danger" : "alert-success") py-2 mt-2 mb-0">@_resultado</div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+
+        @if (_modelo != null)
+        {
+            <div class="card shadow-sm border-0 mt-3">
+                <div class="card-header bg-dark text-white">
+                    <i class="bi bi-eye me-1"></i>Preview (primeiro item)
+                </div>
+                <div class="card-body">
+                    <EtiquetaPreview Modelo="_modelo" CodigoBarras="@PreviewCodigo()" DadoRfid="@PreviewCodigo()" />
+                </div>
+            </div>
+        }
+
+        <div class="card shadow-sm border-0 mt-3">
+            <div class="card-body">
+                <label class="form-label small fw-semibold mb-1">
+                    <i class="bi bi-arrow-repeat me-1"></i>Regravar um código avulso
+                </label>
+                <div class="input-group">
+                    <input class="form-control" @bind="_codigoAvulso" placeholder="Digite o código que falhou (ex: B016002003)" disabled="@_imprimindo" />
+                    <button class="btn btn-outline-primary" @onclick="RegravarAvulso"
+                            disabled="@(_modeloId == 0 || _estacao == null || _imprimindo || string.IsNullOrWhiteSpace(_codigoAvulso))">
+                        Regravar
+                    </button>
+                </div>
+                <div class="form-text">Para retentar um código que deu erro (ex: multitag), sem refazer o lote todo.</div>
+                @if (!string.IsNullOrEmpty(_resultadoAvulso))
+                {
+                    <div class="alert @(_resultadoAvulsoErro ? "alert-danger" : "alert-success") py-2 mt-2 mb-0 small">@_resultadoAvulso</div>
+                }
             </div>
         </div>
     </div>
@@ -259,14 +422,21 @@
 
 @code {
     private List<Etiqueta> _modelos = [];
+    private Etiqueta? _modelo;
     private List<EstacaoImpressora> _estacoes = [];
     private EstacaoImpressora? _estacao;
     private int _estacaoId;
     private List<Projeto> _projetos = [];
     private Projeto? _projeto;
     private int _projetoId;
-    private List<TagRegistro> _tagsPendentes = [];
     private int _modeloId;
+
+    // Modo Projeto: tags + seleção + filtro/faixa
+    private List<TagRegistro> _todasTags = [];
+    private HashSet<long> _selecionadas = [];
+    private string _filtroStatus = "pendentes";
+    private long? _faixaDe;
+    private long? _faixaAte;
 
     private int _modo; // 0 = sequência, 1 = arquivo
 
@@ -315,18 +485,71 @@
         _estacao = _estacaoId > 0 ? _estacoes.FirstOrDefault(e => e.Id == _estacaoId) : null;
     }
 
+    private void CarregarModelo()
+    {
+        _modelo = _modeloId > 0 ? Db.GetEtiqueta(_modeloId) : null;
+    }
+
     private void OnProjetoChanged()
     {
         _projeto = _projetoId > 0 ? Db.GetProjeto(_projetoId) : null;
-        _resultado = ""; _lista = [];
+        _resultado = ""; _lista = []; _selecionadas.Clear(); _faixaDe = null; _faixaAte = null;
 
-        if (_projeto == null) return;
+        if (_projeto == null) { _todasTags = []; return; }
 
         _modeloId = _projeto.EtiquetaTemplateId;
-        _tagsPendentes = Db.GetTagsDoProjeto(_projeto.Id).Where(t => t.Status != StatusTag.Impressa).ToList();
-        _lista = _tagsPendentes.Select(t => t.NumeroSequencia.ToString()).ToList();
-        _msgOrigem = $"{_lista.Count} códigos pendentes carregados do projeto.";
-        _erroOrigem = false;
+        CarregarModelo();
+        _todasTags = Db.GetTagsDoProjeto(_projeto.Id);
+    }
+
+    private IEnumerable<TagRegistro> TagsFiltradas() => _todasTags.Where(t =>
+        _filtroStatus switch
+        {
+            "impressas" => t.Status == StatusTag.Impressa,
+            "erros" => t.Status == StatusTag.Erro,
+            "todas" => true,
+            _ => t.Status != StatusTag.Impressa
+        });
+
+    private void Alternar(long id, bool marcado)
+    {
+        if (marcado) _selecionadas.Add(id);
+        else _selecionadas.Remove(id);
+    }
+
+    private void SelecionarTodasFiltradas(bool marcado, List<TagRegistro> filtradas)
+    {
+        foreach (var t in filtradas)
+        {
+            if (marcado) _selecionadas.Add(t.Id);
+            else _selecionadas.Remove(t.Id);
+        }
+    }
+
+    private void SelecionarFaixa()
+    {
+        if (_projeto == null) return;
+        long de = _faixaDe ?? _projeto.SequenciaInicial;
+        long ate = _faixaAte ?? _projeto.SequenciaFinal;
+        foreach (var t in _todasTags.Where(t => t.NumeroSequencia >= de && t.NumeroSequencia <= ate))
+            _selecionadas.Add(t.Id);
+    }
+
+    private void SelecionarProximasPendentes(int n)
+    {
+        foreach (var t in _todasTags.Where(t => t.Status != StatusTag.Impressa).OrderBy(t => t.NumeroSequencia).Take(n))
+            _selecionadas.Add(t.Id);
+    }
+
+    private string PreviewCodigo()
+    {
+        if (_projeto != null)
+        {
+            var tag = _todasTags.FirstOrDefault(t => _selecionadas.Contains(t.Id))
+                ?? _todasTags.OrderBy(t => t.NumeroSequencia).FirstOrDefault();
+            return tag?.NumeroSequencia.ToString() ?? "";
+        }
+        return _lista.FirstOrDefault() ?? "";
     }
 
     private void GerarSequencia()
@@ -405,19 +628,45 @@
         _resultado = resultado.Sucesso
             ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
             : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
+    }
 
-        // Se o lote veio de um Projeto, atualiza o TagRegistro de cada item conforme
-        // o que realmente foi impresso (o lote para no primeiro erro).
-        if (_projeto != null)
-        {
-            for (int i = 0; i < resultado.Impressos && i < _tagsPendentes.Count; i++)
-                Db.MarcarTag(_tagsPendentes[i].Id, StatusTag.Impressa, estacao.Id);
+    private async Task ImprimirSelecionadas()
+    {
+        if (_projeto == null || _modelo == null || _estacao == null) return;
+        var selecionadas = _todasTags.Where(t => _selecionadas.Contains(t.Id)).OrderBy(t => t.NumeroSequencia).ToList();
+        if (selecionadas.Count == 0) return;
 
-            if (!resultado.Sucesso && resultado.Impressos < _tagsPendentes.Count)
-                Db.MarcarTag(_tagsPendentes[resultado.Impressos].Id, StatusTag.Erro, estacao.Id, resultado.Erro);
+        _imprimindo = true;
+        _progresso = 0;
+        _resultado = "";
+        StateHasChanged();
 
-            OnProjetoChanged(); // recarrega pendentes restantes
-        }
+        var itens = selecionadas.Select(t => (CodigoBarras: t.NumeroSequencia.ToString(), DadoRfid: t.NumeroSequencia.ToString())).ToList();
+        var estacao = _estacao;
+        var modelo = _modelo;
+
+        var resultado = await Task.Run(() =>
+            Printer.ImprimirLote(modelo, itens, estacao, _intervalo, feitos =>
+            {
+                _progresso = feitos;
+                InvokeAsync(StateHasChanged);
+            }));
+
+        _imprimindo = false;
+        _resultadoErro = !resultado.Sucesso;
+        _resultado = resultado.Sucesso
+            ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
+            : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
+
+        // O lote para no primeiro erro — os primeiros N (na mesma ordem enviada) tiveram sucesso.
+        for (int i = 0; i < resultado.Impressos && i < selecionadas.Count; i++)
+            Db.MarcarTag(selecionadas[i].Id, StatusTag.Impressa, estacao.Id);
+
+        if (!resultado.Sucesso && resultado.Impressos < selecionadas.Count)
+            Db.MarcarTag(selecionadas[resultado.Impressos].Id, StatusTag.Erro, estacao.Id, resultado.Erro);
+
+        _selecionadas.Clear();
+        _todasTags = Db.GetTagsDoProjeto(_projeto.Id);
     }
 
     private async Task RegravarAvulso()

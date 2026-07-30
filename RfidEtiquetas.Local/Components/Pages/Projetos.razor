@@ -12,6 +12,7 @@
 @if (_editando)
 {
     <div class="card shadow-sm border-0 mb-3">
+        <div class="card-header bg-dark text-white">@(_projeto.Id == 0 ? "Novo projeto" : $"Editando: {_projeto.Codigo}")</div>
         <div class="card-body">
             <div class="row g-2">
                 <div class="col-md-3">
@@ -72,7 +73,7 @@
 }
 
 <table class="table table-sm bg-white shadow-sm">
-    <thead><tr><th>Código</th><th>Nome</th><th>Modelo</th><th>Faixa</th><th>Status</th></tr></thead>
+    <thead><tr><th>Código</th><th>Nome</th><th>Modelo</th><th>Faixa</th><th>Status</th><th></th></tr></thead>
     <tbody>
         @foreach (var p in _lista)
         {
@@ -89,6 +90,11 @@
                     {
                         <span class="badge bg-danger">@resumo.Erros erro(s)</span>
                     }
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => Editar(p.Id)">
+                        <i class="bi bi-pencil"></i> Editar
+                    </button>
                 </td>
             </tr>
         }
@@ -113,6 +119,16 @@
     private void Novo()
     {
         _projeto = new() { SequenciaInicial = 1, SequenciaFinal = 100 };
+        _mensagem = ""; _editando = true;
+        _modelos = Db.GetEtiquetas();
+        _empresas = Db.GetEmpresas();
+    }
+
+    private void Editar(int id)
+    {
+        var p = Db.GetProjeto(id);
+        if (p == null) return;
+        _projeto = p;
         _mensagem = ""; _editando = true;
         _modelos = Db.GetEtiquetas();
         _empresas = Db.GetEmpresas();
