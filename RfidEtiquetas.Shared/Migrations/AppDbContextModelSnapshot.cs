@@ -606,6 +606,91 @@ namespace RfidEtiquetas.Shared.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.WebhookDelivery", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EntregueEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Evento")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ProximaTentativaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Tentativas")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UltimoErro")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("UltimoStatusCode")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WebhookSubscriptionId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WebhookSubscriptionId");
+
+                    b.HasIndex("Status", "ProximaTentativaEm");
+
+                    b.ToTable("WebhookDeliveries");
+                });
+
+            modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.WebhookSubscription", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EmpresaId")
+                        .HasColumnType("integer");
+
+                    b.Property<string[]>("Eventos")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("Secret")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId");
+
+                    b.ToTable("WebhookSubscriptions");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<int>", b =>
                 {
                     b.HasOne("RfidEtiquetas.Shared.Data.Models.Usuario", null)
@@ -733,6 +818,28 @@ namespace RfidEtiquetas.Shared.Migrations
                 });
 
             modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.Usuario", b =>
+                {
+                    b.HasOne("RfidEtiquetas.Shared.Data.Models.Empresa", "Empresa")
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Empresa");
+                });
+
+            modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.WebhookDelivery", b =>
+                {
+                    b.HasOne("RfidEtiquetas.Shared.Data.Models.WebhookSubscription", "WebhookSubscription")
+                        .WithMany()
+                        .HasForeignKey("WebhookSubscriptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WebhookSubscription");
+                });
+
+            modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.WebhookSubscription", b =>
                 {
                     b.HasOne("RfidEtiquetas.Shared.Data.Models.Empresa", "Empresa")
                         .WithMany()

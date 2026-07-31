@@ -42,12 +42,15 @@ builder.Services.AddIdentityCore<Usuario>(o =>
     .AddDefaultTokenProviders();
 
 builder.Services.AddScoped<ICurrentUserService, HttpCurrentUserService>();
+builder.Services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
 builder.Services.AddSingleton<RfidEncoderService>();
 builder.Services.AddSingleton<BarcodeService>();
 builder.Services.AddSingleton<ZplBuilder>();
 builder.Services.AddSingleton<IPrinterService, ZplPrinterService>();
 builder.Services.AddSingleton<LoteService>();
 builder.Services.AddHostedService<PrintJobProcessor>();
+builder.Services.AddHostedService<WebhookDeliveryProcessor>();
+builder.Services.AddHttpClient("webhooks", c => c.Timeout = TimeSpan.FromSeconds(10));
 
 var app = builder.Build();
 

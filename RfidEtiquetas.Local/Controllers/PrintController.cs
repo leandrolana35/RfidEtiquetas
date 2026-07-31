@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RfidEtiquetas.Shared.Data;
 using RfidEtiquetas.Shared.Data.Models;
+using RfidEtiquetas.Shared.Services;
 using RfidEtiquetas.Shared.Services.Auth;
 
 namespace RfidEtiquetas.Local.Controllers;
@@ -13,10 +14,12 @@ namespace RfidEtiquetas.Local.Controllers;
 public class PrintController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IWebhookDispatcher _webhooks;
 
-    public PrintController(AppDbContext db)
+    public PrintController(AppDbContext db, IWebhookDispatcher webhooks)
     {
         _db = db;
+        _webhooks = webhooks;
     }
 
     // ProjetoId + NumeroSequencia são opcionais: quando informados, o job fica
@@ -87,6 +90,19 @@ public class PrintController : ControllerBase
         };
         _db.PrintJobs.Add(job);
         await _db.SaveChangesAsync();
+
+        _webhooks.EnqueueEvent(WebhookEventos.JobCreated, empresaId, new
+        {
+            evento = WebhookEventos.JobCreated,
+            jobId = job.Id,
+            epc = job.Epc,
+            sku = job.Sku,
+            lote = job.Lote,
+            estacaoId = job.EstacaoId,
+            layoutId = job.EtiquetaTemplateId,
+            projetoId = job.ProjetoId,
+            criadoEm = job.CriadoEm
+        });
 
         return Accepted(new
         {

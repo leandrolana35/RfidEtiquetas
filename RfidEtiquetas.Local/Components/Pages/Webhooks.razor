@@ -1,0 +1,192 @@
+@page "/webhooks"
+@attribute [Authorize(Roles = "Administrador")]
+@inject AppDbContext Db
+
+<PageTitle>Webhooks</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Webhooks</h5>
+    <button class="btn btn-warning" @onclick="Novo"><i class="bi bi-plus-lg me-1"></i>Novo webhook</button>
+</div>
+
+<div class="alert alert-info small">
+    Enviamos um <code>POST</code> com o payload em JSON e os cabeçalhos
+    <code>X-Webhook-Event</code>, <code>X-Webhook-Id</code> e
+    <code>X-Webhook-Signature: sha256=&lt;hmac&gt;</code> (assinatura HMAC-SHA256
+    do corpo, usando o secret abaixo). Em caso de falha, tentamos de novo com
+    backoff: 30s, 2min, 10min, 30min, 2h — depois disso, a entrega é marcada
+    como esgotada.
+</div>
+
+@if (_editando)
+{
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label small">URL de destino</label>
+                    <input class="form-control" @bind="_url" placeholder="https://seusistema.com/webhooks/afixrfid" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Empresa</label>
+                    <select class="form-select" @bind="_empresaId">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var emp in _empresas)
+                        {
+                            <option value="@emp.Id">@emp.Nome</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label small d-block">Eventos</label>
+                    @foreach (var evento in WebhookEventos.Todos)
+                    {
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="@("ev_" + evento)"
+                                   checked="@_eventosSelecionados.Contains(evento)"
+                                   @onchange="@(e => AlternarEvento(evento, (bool)e.Value!))" />
+                            <label class="form-check-label small font-monospace" for="@("ev_" + evento)">@evento</label>
+                        </div>
+                    }
+                </div>
+                <div class="col-12 d-flex gap-2 mt-2">
+                    <button class="btn btn-warning" @onclick="Salvar">Salvar</button>
+                    <button class="btn btn-outline-secondary" @onclick="() => _editando = false">Cancelar</button>
+                </div>
+                @if (!string.IsNullOrEmpty(_mensagem))
+                {
+                    <div class="col-12"><div class="alert alert-danger py-2 small mb-0">@_mensagem</div></div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<table class="table table-sm bg-white shadow-sm">
+    <thead><tr><th>URL</th><th>Empresa</th><th>Eventos</th><th>Secret</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+        @foreach (var w in _lista)
+        {
+            <tr>
+                <td class="small">@w.Url</td>
+                <td>@w.Empresa?.Nome</td>
+                <td class="small">@string.Join(", ", w.Eventos)</td>
+                <td class="font-monospace small">@w.Secret</td>
+                <td>@(w.Ativo ? "Ativo" : "Revogado")</td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => VerEntregas(w.Id)">Entregas</button>
+                    @if (w.Ativo)
+                    {
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Revogar(w.Id)">Revogar</button>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (_webhookSelecionado != null)
+{
+    <div class="card shadow-sm border-0 mt-3">
+        <div class="card-header bg-dark text-white">Últimas entregas — @_webhookSelecionado.Url</div>
+        <div class="card-body p-0">
+            @if (_entregas.Count == 0)
+            {
+                <p class="text-muted p-3 mb-0">Nenhuma entrega ainda.</p>
+            }
+            else
+            {
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Evento</th><th>Status</th><th>Tentativas</th><th>Último código</th><th>Criado em</th></tr></thead>
+                    <tbody>
+                        @foreach (var d in _entregas)
+                        {
+                            <tr>
+                                <td class="font-monospace small">@d.Evento</td>
+                                <td>
+                                    @switch (d.Status)
+                                    {
+                                        case StatusWebhookDelivery.Sucesso:
+                                            <span class="badge bg-success">Entregue</span>
+                                            break;
+                                        case StatusWebhookDelivery.Esgotado:
+                                            <span class="badge bg-danger">Esgotado</span>
+                                            break;
+                                        default:
+                                            <span class="badge bg-secondary">Pendente</span>
+                                            break;
+                                    }
+                                </td>
+                                <td>@d.Tentativas</td>
+                                <td>@(d.UltimoStatusCode?.ToString() ?? "—")</td>
+                                <td class="small text-muted">@d.CriadoEm.ToLocalTime().ToString("dd/MM HH:mm:ss")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<WebhookSubscription> _lista = [];
+    private List<Empresa> _empresas = [];
+    private bool _editando;
+    private string _url = "";
+    private int _empresaId;
+    private HashSet<string> _eventosSelecionados = [];
+    private string _mensagem = "";
+
+    private WebhookSubscription? _webhookSelecionado;
+    private List<WebhookDelivery> _entregas = [];
+
+    protected override void OnInitialized()
+    {
+        _lista = Db.GetWebhooks();
+        _empresas = Db.GetEmpresas();
+    }
+
+    private void Novo()
+    {
+        _url = ""; _empresaId = 0; _eventosSelecionados = [];
+        _mensagem = ""; _editando = true;
+    }
+
+    private void AlternarEvento(string evento, bool marcado)
+    {
+        if (marcado) _eventosSelecionados.Add(evento);
+        else _eventosSelecionados.Remove(evento);
+    }
+
+    private void Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_url) || _empresaId == 0 || _eventosSelecionados.Count == 0)
+        {
+            _mensagem = "Preencha a URL, a empresa e selecione ao menos um evento.";
+            return;
+        }
+        if (!Uri.TryCreate(_url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
+        {
+            _mensagem = "URL inválida — use um endereço http(s) completo.";
+            return;
+        }
+
+        var secret = WebhookSigner.GerarSecret();
+        Db.CriarWebhook(_url.Trim(), secret, _eventosSelecionados.ToArray(), _empresaId);
+        _editando = false;
+        _lista = Db.GetWebhooks();
+    }
+
+    private void Revogar(int id)
+    {
+        Db.RevogarWebhook(id);
+        _lista = Db.GetWebhooks();
+    }
+
+    private void VerEntregas(int id)
+    {
+        _webhookSelecionado = _lista.FirstOrDefault(w => w.Id == id);
+        _entregas = Db.GetEntregasRecentes(id);
+    }
+}

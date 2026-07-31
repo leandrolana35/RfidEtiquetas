@@ -25,6 +25,8 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
     public DbSet<TagRegistro> TagRegistros => Set<TagRegistro>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<PrintJob> PrintJobs => Set<PrintJob>();
+    public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -106,6 +108,24 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
             .HasOne(e => e.Empresa).WithMany()
             .HasForeignKey(e => e.EmpresaId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Mesma lógica de escopo manual (sem query filter) das outras entidades
+        // usadas pelo processador de fila em background.
+        builder.Entity<WebhookSubscription>(e =>
+        {
+            e.HasOne(w => w.Empresa).WithMany()
+                .HasForeignKey(w => w.EmpresaId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<WebhookDelivery>(e =>
+        {
+            e.HasOne(d => d.WebhookSubscription).WithMany()
+                .HasForeignKey(d => d.WebhookSubscriptionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(d => new { d.Status, d.ProximaTentativaEm }); // usado pelo WebhookDeliveryProcessor
+        });
     }
 
     // Helpers simples de CRUD, na mesma linha do que a antiga classe AppDbContext
@@ -256,4 +276,26 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
         k.Ativo = false;
         SaveChanges();
     }
+
+    public List<WebhookSubscription> GetWebhooks() => WebhookSubscriptions.Include(w => w.Empresa).OrderByDescending(w => w.CriadoEm).ToList();
+
+    public WebhookSubscription CriarWebhook(string url, string secret, string[] eventos, int empresaId)
+    {
+        var w = new WebhookSubscription { Url = url, Secret = secret, Eventos = eventos, EmpresaId = empresaId };
+        WebhookSubscriptions.Add(w);
+        SaveChanges();
+        return w;
+    }
+
+    public void RevogarWebhook(int id)
+    {
+        var w = WebhookSubscriptions.Find(id);
+        if (w == null) return;
+        w.Ativo = false;
+        SaveChanges();
+    }
+
+    public List<WebhookDelivery> GetEntregasRecentes(int webhookSubscriptionId, int limite = 20)
+        => WebhookDeliveries.Where(d => d.WebhookSubscriptionId == webhookSubscriptionId)
+            .OrderByDescending(d => d.CriadoEm).Take(limite).ToList();
 }

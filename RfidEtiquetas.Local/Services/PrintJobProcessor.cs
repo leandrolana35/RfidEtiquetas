@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RfidEtiquetas.Shared.Data;
 using RfidEtiquetas.Shared.Data.Models;
+using RfidEtiquetas.Shared.Services;
 using RfidEtiquetas.Shared.Services.Printing;
 
 namespace RfidEtiquetas.Local.Services;
@@ -48,10 +49,12 @@ public class PrintJobProcessor : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var printer = scope.ServiceProvider.GetRequiredService<IPrinterService>();
+        var webhooks = scope.ServiceProvider.GetRequiredService<IWebhookDispatcher>();
 
         var job = await db.PrintJobs
             .Include(j => j.Estacao)
             .Include(j => j.EtiquetaTemplate)
+            .Include(j => j.ApiKey)
             .Where(j => j.Status == StatusPrintJob.Pendente)
             .OrderBy(j => j.CriadoEm)
             .FirstOrDefaultAsync(ct);
@@ -88,6 +91,21 @@ public class PrintJobProcessor : BackgroundService
         {
             var statusTag = job.Status == StatusPrintJob.Concluido ? StatusTag.Impressa : StatusTag.Erro;
             db.MarcarTag(tagRegistroId, statusTag, job.EstacaoId, job.MensagemErro);
+        }
+
+        if (job.ApiKey != null)
+        {
+            var evento = job.Status == StatusPrintJob.Concluido ? WebhookEventos.JobCompleted : WebhookEventos.JobFailed;
+            webhooks.EnqueueEvent(evento, job.ApiKey.EmpresaId, new
+            {
+                evento,
+                jobId = job.Id,
+                epc = job.Epc,
+                sku = job.Sku,
+                status = job.Status.ToString().ToLowerInvariant(),
+                erro = job.MensagemErro,
+                processadoEm = job.ProcessadoEm
+            });
         }
 
         return true;
