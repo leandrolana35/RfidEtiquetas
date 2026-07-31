@@ -3,6 +3,7 @@
 @inject AppDbContext Db
 @inject LoteService LoteSvc
 @inject IPrinterService Printer
+@inject AuthenticationStateProvider AuthProvider
 
 <PageTitle>Imprimir em Lote</PageTitle>
 
@@ -479,10 +480,14 @@
 
     private bool PodeImprimir => _modeloId > 0 && _estacao != null && _lista.Count > 0;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        var user = (await AuthProvider.GetAuthenticationStateAsync()).User;
+        bool isAdmin = user.FindFirst("Perfil")?.Value == "Administrador";
+        int? empresaId = int.TryParse(user.FindFirst("EmpresaId")?.Value, out var eid) ? eid : null;
+
         _modelos = Db.GetEtiquetas();
-        _estacoes = Db.GetEstacoes();
+        _estacoes = Db.GetEstacoesVisiveis(isAdmin, empresaId);
         _projetos = Db.GetProjetos();
         if (_estacoes.Count == 1) { _estacaoId = _estacoes[0].Id; OnEstacaoChanged(); }
     }

@@ -1,5 +1,5 @@
 @page "/configuracoes"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Administrador")]
 @inject AppDbContext Db
 @inject IPrinterService Printer
 
@@ -27,6 +27,17 @@
                             <option value="@ModeloImpressora.Sato_CL4NX">Sato CL4NX Plus</option>
                             <option value="@ModeloImpressora.Printronix_T6000">Printronix T6000</option>
                         </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Empresa</label>
+                        <select class="form-select" @bind="_estacao.EmpresaId">
+                            <option value="0">-- Selecione --</option>
+                            @foreach (var emp in _empresas)
+                            {
+                                <option value="@emp.Id">@emp.Nome</option>
+                            }
+                        </select>
+                        <div class="form-text">Só a empresa dona desta estação (ou o Administrador) pode usá-la — inclusive via API.</div>
                     </div>
 
                     <div class="mb-3">
@@ -121,6 +132,10 @@
                 </button>
             }
         </div>
+        @if (!string.IsNullOrEmpty(_mensagem))
+        {
+            <div class="col-12"><div class="alert alert-danger py-2 small mb-0">@_mensagem</div></div>
+        }
     </div>
 }
 else
@@ -153,7 +168,8 @@ else
                                 <span>
                                     <i class="bi @(e.TipoConexao == TipoConexaoImpressora.Rede ? "bi-ethernet" : "bi-usb-symbol") me-1"></i>
                                     @(e.TipoConexao == TipoConexaoImpressora.Rede ? $"{e.ImpressoraIp}:{e.ImpressoraPorta}" : e.PortaCom)
-                                </span>
+                                </span><br />
+                                <span><i class="bi bi-building me-1"></i>@(e.Empresa?.Nome ?? "sem empresa")</span>
                             </div>
                         </div>
                         <div class="card-footer bg-transparent">
@@ -170,25 +186,28 @@ else
 
 @code {
     private List<EstacaoImpressora> _lista = [];
+    private List<Empresa> _empresas = [];
     private EstacaoImpressora _estacao = new();
     private string[] _portas = [];
     private bool _editando;
     private bool _testando;
     private bool _testeOk;
     private string _testeMsg = "";
+    private string _mensagem = "";
 
     protected override void OnInitialized()
     {
         _lista = Db.GetEstacoes();
+        _empresas = Db.GetEmpresas();
     }
 
-    private void Novo() { _estacao = new(); _editando = true; AtualizarPortas(); }
+    private void Novo() { _estacao = new(); _editando = true; _mensagem = ""; AtualizarPortas(); }
 
     private void Editar(int id)
     {
         var e = Db.GetEstacao(id);
         if (e == null) return;
-        _estacao = e; _editando = true; _testeMsg = "";
+        _estacao = e; _editando = true; _testeMsg = ""; _mensagem = "";
         AtualizarPortas();
     }
 
@@ -203,6 +222,11 @@ else
 
     private void Salvar()
     {
+        if (_estacao.EmpresaId is null or 0)
+        {
+            _mensagem = "Selecione a empresa dona desta estação.";
+            return;
+        }
         Db.SaveEstacao(_estacao);
         Cancelar();
     }

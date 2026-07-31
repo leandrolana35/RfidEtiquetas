@@ -12,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
+builder.Services.AddControllers();
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -23,7 +24,10 @@ builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     {
         o.LoginPath = "/login";
         o.AccessDeniedPath = "/login";
-    });
+    })
+    // Esquema separado para a API externa (cabeçalho X-API-Key) — não interfere
+    // com o login por cookie do resto do app; cada endpoint escolhe qual usar.
+    .AddScheme<ApiKeyAuthOptions, ApiKeyAuthHandler>(ApiKeyAuthHandler.SchemeName, null);
 
 builder.Services.AddIdentityCore<Usuario>(o =>
     {
@@ -43,6 +47,7 @@ builder.Services.AddSingleton<BarcodeService>();
 builder.Services.AddSingleton<ZplBuilder>();
 builder.Services.AddSingleton<IPrinterService, ZplPrinterService>();
 builder.Services.AddSingleton<LoteService>();
+builder.Services.AddHostedService<PrintJobProcessor>();
 
 var app = builder.Build();
 
@@ -59,6 +64,7 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapControllers();
 app.MapBlazorHub();
 app.MapRazorPages();
 app.MapFallbackToPage("/_Host");

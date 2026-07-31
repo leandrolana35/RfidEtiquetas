@@ -3,6 +3,7 @@
 @inject AppDbContext Db
 @inject IPrinterService Printer
 @inject RfidEncoderService RfidEncoder
+@inject AuthenticationStateProvider AuthProvider
 
 <PageTitle>Imprimir Etiqueta</PageTitle>
 
@@ -179,10 +180,14 @@
 
     private bool PodeImprimir => _modelo != null && _estacao != null && (_projeto == null || _proximaTag != null);
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        var user = (await AuthProvider.GetAuthenticationStateAsync()).User;
+        bool isAdmin = user.FindFirst("Perfil")?.Value == "Administrador";
+        int? empresaId = int.TryParse(user.FindFirst("EmpresaId")?.Value, out var eid) ? eid : null;
+
         _modelos = Db.GetEtiquetas();
-        _estacoes = Db.GetEstacoes();
+        _estacoes = Db.GetEstacoesVisiveis(isAdmin, empresaId);
         _projetos = Db.GetProjetos();
 
         if (_estacoes.Count == 1) { _estacaoId = _estacoes[0].Id; OnEstacaoChanged(); }

@@ -27,14 +27,14 @@
                     <i class="bi bi-stack me-2"></i>Imprimir em Lote
                 </NavLink>
             </li>
-            <li class="nav-item">
-                <NavLink class="nav-link text-white rounded" href="configuracoes">
-                    <i class="bi bi-gear me-2"></i>Configurações
-                </NavLink>
-            </li>
             <AuthorizeView Context="auth">
                 @if (auth.User.FindFirst("Perfil")?.Value == "Administrador")
                 {
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white rounded" href="configuracoes">
+                            <i class="bi bi-gear me-2"></i>Configurações
+                        </NavLink>
+                    </li>
                     <li class="mt-3 mb-1 small text-muted text-uppercase px-2">Gestão</li>
                     <li class="nav-item">
                         <NavLink class="nav-link text-white rounded" href="projetos">
@@ -49,6 +49,11 @@
                     <li class="nav-item">
                         <NavLink class="nav-link text-white rounded" href="empresas">
                             <i class="bi bi-building me-2"></i>Empresas
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white rounded" href="apikeys">
+                            <i class="bi bi-key me-2"></i>Chaves de API
                         </NavLink>
                     </li>
                 }

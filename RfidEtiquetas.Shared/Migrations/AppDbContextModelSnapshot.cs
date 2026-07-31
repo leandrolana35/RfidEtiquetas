@@ -86,6 +86,48 @@ namespace RfidEtiquetas.Shared.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.ApiKey", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ChaveHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ChavePrefixo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EmpresaId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UltimoUsoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChaveHash")
+                        .IsUnique();
+
+                    b.HasIndex("EmpresaId");
+
+                    b.ToTable("ApiKeys");
+                });
+
             modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.Empresa", b =>
                 {
                     b.Property<int>("Id")
@@ -120,6 +162,9 @@ namespace RfidEtiquetas.Shared.Migrations
                     b.Property<int?>("DpiOverride")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("EmpresaId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("ImpressoraIp")
                         .IsRequired()
                         .HasColumnType("text");
@@ -142,6 +187,8 @@ namespace RfidEtiquetas.Shared.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId");
 
                     b.ToTable("EstacoesImpressoras");
                 });
@@ -325,6 +372,66 @@ namespace RfidEtiquetas.Shared.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Etiquetas");
+                });
+
+            modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.PrintJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ApiKeyId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Epc")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("EstacaoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EtiquetaTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Lote")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MensagemErro")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ProcessadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ProjetoId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Sku")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("TagRegistroId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKeyId");
+
+                    b.HasIndex("EstacaoId");
+
+                    b.HasIndex("EtiquetaTemplateId");
+
+                    b.HasIndex("ProjetoId");
+
+                    b.HasIndex("TagRegistroId");
+
+                    b.HasIndex("Status", "CriadoEm");
+
+                    b.ToTable("PrintJobs");
                 });
 
             modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.Projeto", b =>
@@ -524,6 +631,68 @@ namespace RfidEtiquetas.Shared.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.ApiKey", b =>
+                {
+                    b.HasOne("RfidEtiquetas.Shared.Data.Models.Empresa", "Empresa")
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Empresa");
+                });
+
+            modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.EstacaoImpressora", b =>
+                {
+                    b.HasOne("RfidEtiquetas.Shared.Data.Models.Empresa", "Empresa")
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Empresa");
+                });
+
+            modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.PrintJob", b =>
+                {
+                    b.HasOne("RfidEtiquetas.Shared.Data.Models.ApiKey", "ApiKey")
+                        .WithMany()
+                        .HasForeignKey("ApiKeyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RfidEtiquetas.Shared.Data.Models.EstacaoImpressora", "Estacao")
+                        .WithMany()
+                        .HasForeignKey("EstacaoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RfidEtiquetas.Shared.Data.Models.Etiqueta", "EtiquetaTemplate")
+                        .WithMany()
+                        .HasForeignKey("EtiquetaTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RfidEtiquetas.Shared.Data.Models.Projeto", "Projeto")
+                        .WithMany()
+                        .HasForeignKey("ProjetoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RfidEtiquetas.Shared.Data.Models.TagRegistro", "TagRegistro")
+                        .WithMany()
+                        .HasForeignKey("TagRegistroId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ApiKey");
+
+                    b.Navigation("Estacao");
+
+                    b.Navigation("EtiquetaTemplate");
+
+                    b.Navigation("Projeto");
+
+                    b.Navigation("TagRegistro");
                 });
 
             modelBuilder.Entity("RfidEtiquetas.Shared.Data.Models.Projeto", b =>

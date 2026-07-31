@@ -23,6 +23,8 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
     public DbSet<EstacaoImpressora> EstacoesImpressoras => Set<EstacaoImpressora>();
     public DbSet<Projeto> Projetos => Set<Projeto>();
     public DbSet<TagRegistro> TagRegistros => Set<TagRegistro>();
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+    public DbSet<PrintJob> PrintJobs => Set<PrintJob>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -60,6 +62,50 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
 
             e.HasQueryFilter(t => _currentUser.IsAdministrador || t.Projeto!.EmpresaId == _currentUser.EmpresaId);
         });
+
+        // ApiKey/PrintJob não usam o filtro de empresa baseado em cookie (ICurrentUserService)
+        // porque a autenticação por API Key é um mecanismo totalmente separado do login por
+        // cookie — o escopo por empresa aqui é aplicado explicitamente nos controllers, a
+        // partir da EmpresaId da própria chave autenticada.
+        builder.Entity<ApiKey>(e =>
+        {
+            e.HasOne(k => k.Empresa).WithMany()
+                .HasForeignKey(k => k.EmpresaId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(k => k.ChaveHash).IsUnique();
+        });
+
+        builder.Entity<PrintJob>(e =>
+        {
+            e.HasOne(j => j.ApiKey).WithMany()
+                .HasForeignKey(j => j.ApiKeyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(j => j.Estacao).WithMany()
+                .HasForeignKey(j => j.EstacaoId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(j => j.EtiquetaTemplate).WithMany()
+                .HasForeignKey(j => j.EtiquetaTemplateId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(j => j.Projeto).WithMany()
+                .HasForeignKey(j => j.ProjetoId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(j => j.TagRegistro).WithMany()
+                .HasForeignKey(j => j.TagRegistroId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(j => new { j.Status, j.CriadoEm }); // usado pelo PrintJobProcessor
+        });
+
+        // EstacaoImpressora NÃO usa query filter automático (diferente de Projeto/TagRegistro):
+        // o PrintJobProcessor (background service, sem HttpContext/cookie) e os controllers
+        // da API (autenticados por chave, não por cookie) também consultam esta tabela — um
+        // filtro baseado em ICurrentUserService escondería os registros nesses dois contextos.
+        // O escopo por empresa aqui é feito explicitamente em cada chamador (ver
+        // GetEstacoesVisiveis abaixo e os controllers de API).
+        builder.Entity<EstacaoImpressora>()
+            .HasOne(e => e.Empresa).WithMany()
+            .HasForeignKey(e => e.EmpresaId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     // Helpers simples de CRUD, na mesma linha do que a antiga classe AppDbContext
@@ -86,9 +132,13 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
         SaveChanges();
     }
 
-    public List<EstacaoImpressora> GetEstacoes() => EstacoesImpressoras.OrderBy(e => e.NomeEstacao).ToList();
+    public List<EstacaoImpressora> GetEstacoes() => EstacoesImpressoras.Include(e => e.Empresa).OrderBy(e => e.NomeEstacao).ToList();
 
-    public EstacaoImpressora? GetEstacao(int id) => EstacoesImpressoras.Find(id);
+    /// <summary>Escopo explícito por empresa (ver comentário em OnModelCreating sobre por que não é um query filter automático).</summary>
+    public List<EstacaoImpressora> GetEstacoesVisiveis(bool isAdministrador, int? empresaId)
+        => GetEstacoes().Where(e => isAdministrador || e.EmpresaId == empresaId).ToList();
+
+    public EstacaoImpressora? GetEstacao(int id) => EstacoesImpressoras.Include(e => e.Empresa).FirstOrDefault(e => e.Id == id);
 
     public int SaveEstacao(EstacaoImpressora e)
     {
@@ -144,7 +194,12 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
 
     public void MarcarTag(long tagRegistroId, StatusTag status, int? estacaoId, string? erro = null)
     {
-        var tag = TagRegistros.Find(tagRegistroId);
+        // IgnoreQueryFilters: o id já foi validado pelo chamador (seja a página
+        // Blazor com sessão de cookie, seja o PrintJobProcessor sem HttpContext
+        // algum) — sem isso, chamadas vindas do processador de fila da API
+        // (sem cookie, então _currentUser.EmpresaId é null) nunca encontrariam
+        // a linha e o status ficaria preso em "NaoImpressa" silenciosamente.
+        var tag = TagRegistros.IgnoreQueryFilters().FirstOrDefault(t => t.Id == tagRegistroId);
         if (tag == null) return;
         tag.Status = status;
         tag.DataImpressao = status == StatusTag.Impressa ? DateTime.UtcNow : tag.DataImpressao;
@@ -174,5 +229,31 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
         else Empresas.Update(e);
         SaveChanges();
         return e.Id;
+    }
+
+    public List<ApiKey> GetApiKeys() => ApiKeys.Include(k => k.Empresa).OrderByDescending(k => k.CriadoEm).ToList();
+
+    /// <summary>Cria a chave e devolve o valor em texto puro — só existe neste retorno, nunca mais.</summary>
+    public (ApiKey Registro, string ChaveTextoPuro) CriarApiKey(string nome, int empresaId)
+    {
+        var chave = Services.ApiKeyService.GerarChave();
+        var registro = new ApiKey
+        {
+            Nome = nome,
+            EmpresaId = empresaId,
+            ChaveHash = Services.ApiKeyService.Hash(chave),
+            ChavePrefixo = Services.ApiKeyService.Prefixo(chave)
+        };
+        ApiKeys.Add(registro);
+        SaveChanges();
+        return (registro, chave);
+    }
+
+    public void RevogarApiKey(int id)
+    {
+        var k = ApiKeys.Find(id);
+        if (k == null) return;
+        k.Ativo = false;
+        SaveChanges();
     }
 }

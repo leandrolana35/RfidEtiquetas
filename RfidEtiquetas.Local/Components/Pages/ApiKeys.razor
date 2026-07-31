@@ -1,0 +1,120 @@
+@page "/apikeys"
+@attribute [Authorize(Roles = "Administrador")]
+@inject AppDbContext Db
+
+<PageTitle>Chaves de API</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Chaves de API</h5>
+    <button class="btn btn-warning" @onclick="Novo"><i class="bi bi-plus-lg me-1"></i>Nova chave</button>
+</div>
+
+<div class="alert alert-info small">
+    Use essas chaves no cabeçalho <code>X-API-Key</code> ao chamar <code>/api/v1/print</code>,
+    <code>/api/v1/jobs/{'{'}jobId{'}'}</code> e <code>/api/v1/printers</code>. Cada chave só
+    enxerga/usa projetos, estações e projetos da empresa à qual pertence.
+</div>
+
+@if (_editando)
+{
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small">Nome / descrição</label>
+                    <input class="form-control" @bind="_nome" placeholder="Ex: Integração WMS" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Empresa</label>
+                    <select class="form-select" @bind="_empresaId">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var emp in _empresas)
+                        {
+                            <option value="@emp.Id">@emp.Nome</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button class="btn btn-warning" @onclick="Gerar">Gerar chave</button>
+                    <button class="btn btn-outline-secondary" @onclick="() => _editando = false">Cancelar</button>
+                </div>
+                @if (!string.IsNullOrEmpty(_mensagem))
+                {
+                    <div class="col-12"><div class="alert alert-danger py-2 small mb-0">@_mensagem</div></div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (_chaveGerada != null)
+{
+    <div class="alert alert-warning">
+        <strong><i class="bi bi-exclamation-triangle me-1"></i>Copie a chave agora — ela não será exibida de novo:</strong>
+        <div class="font-monospace bg-white border rounded p-2 mt-2 user-select-all">@_chaveGerada</div>
+    </div>
+}
+
+<table class="table table-sm bg-white shadow-sm">
+    <thead><tr><th>Nome</th><th>Empresa</th><th>Prefixo</th><th>Status</th><th>Último uso</th><th></th></tr></thead>
+    <tbody>
+        @foreach (var k in _lista)
+        {
+            <tr>
+                <td>@k.Nome</td>
+                <td>@k.Empresa?.Nome</td>
+                <td class="font-monospace small">@k.ChavePrefixo</td>
+                <td>@(k.Ativo ? "Ativa" : "Revogada")</td>
+                <td class="small text-muted">@(k.UltimoUsoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "nunca")</td>
+                <td class="text-end">
+                    @if (k.Ativo)
+                    {
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Revogar(k.Id)">Revogar</button>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<ApiKey> _lista = [];
+    private List<Empresa> _empresas = [];
+    private bool _editando;
+    private string _nome = "";
+    private int _empresaId;
+    private string _mensagem = "";
+    private string? _chaveGerada;
+
+    protected override void OnInitialized()
+    {
+        _lista = Db.GetApiKeys();
+        _empresas = Db.GetEmpresas();
+    }
+
+    private void Novo()
+    {
+        _nome = ""; _empresaId = 0; _mensagem = ""; _chaveGerada = null;
+        _editando = true;
+    }
+
+    private void Gerar()
+    {
+        if (string.IsNullOrWhiteSpace(_nome) || _empresaId == 0)
+        {
+            _mensagem = "Preencha nome e empresa.";
+            return;
+        }
+
+        var (_, chave) = Db.CriarApiKey(_nome.Trim(), _empresaId);
+        _chaveGerada = chave;
+        _editando = false;
+        _lista = Db.GetApiKeys();
+    }
+
+    private void Revogar(int id)
+    {
+        Db.RevogarApiKey(id);
+        _lista = Db.GetApiKeys();
+    }
+}

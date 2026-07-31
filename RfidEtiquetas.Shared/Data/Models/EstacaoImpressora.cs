@@ -20,6 +20,14 @@ public class EstacaoImpressora
     public string NomeEstacao { get; set; } = "";
     public ModeloImpressora ModeloImpressora { get; set; } = ModeloImpressora.Sato_CL4NX;
 
+    // A quem essa impressora pertence — usado para restringir o que a API
+    // (por chave) e usuários não-administradores enxergam/podem usar.
+    // Nullable: estações antigas (de antes desta coluna existir) ficam sem
+    // dono até um Administrador editar e atribuir — ficam invisíveis pra API
+    // e para usuários não-admin nesse meio tempo, o que é o comportamento seguro.
+    public int? EmpresaId { get; set; }
+    public Empresa? Empresa { get; set; }
+
     public TipoConexaoImpressora TipoConexao { get; set; } = TipoConexaoImpressora.Rede;
 
     public string PortaCom { get; set; } = "COM1";
