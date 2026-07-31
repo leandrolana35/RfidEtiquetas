@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using RfidEtiquetas.Local.Mcp;
 using RfidEtiquetas.Local.Services;
 using RfidEtiquetas.Local.Services.Printing;
 using RfidEtiquetas.Shared.Data;
@@ -29,6 +31,14 @@ builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     // com o login por cookie do resto do app; cada endpoint escolhe qual usar.
     .AddScheme<ApiKeyAuthOptions, ApiKeyAuthHandler>(ApiKeyAuthHandler.SchemeName, null);
 
+// Política usada pelo endpoint MCP — mesma chave de API da REST.
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("ApiKey", policy => policy
+        .AddAuthenticationSchemes(ApiKeyAuthHandler.SchemeName)
+        .RequireAuthenticatedUser());
+});
+
 builder.Services.AddIdentityCore<Usuario>(o =>
     {
         o.Password.RequiredLength = 6;
@@ -43,6 +53,7 @@ builder.Services.AddIdentityCore<Usuario>(o =>
 
 builder.Services.AddScoped<ICurrentUserService, HttpCurrentUserService>();
 builder.Services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
+builder.Services.AddScoped<PrintJobService>();
 builder.Services.AddSingleton<RfidEncoderService>();
 builder.Services.AddSingleton<BarcodeService>();
 builder.Services.AddSingleton<ZplBuilder>();
@@ -51,6 +62,13 @@ builder.Services.AddSingleton<LoteService>();
 builder.Services.AddHostedService<PrintJobProcessor>();
 builder.Services.AddHostedService<WebhookDeliveryProcessor>();
 builder.Services.AddHttpClient("webhooks", c => c.Timeout = TimeSpan.FromSeconds(10));
+
+// Servidor MCP — expõe as tools pra agentes de IA via HTTP, autenticado
+// pela mesma X-API-Key da API REST (ver política "ApiKey" acima e o
+// mapeamento de /mcp mais abaixo).
+builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithTools<RfidTools>();
 
 var app = builder.Build();
 
@@ -68,6 +86,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapMcp("/mcp").RequireAuthorization("ApiKey");
 app.MapBlazorHub();
 app.MapRazorPages();
 app.MapFallbackToPage("/_Host");
