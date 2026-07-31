@@ -90,7 +90,16 @@
         if (firstRender)
         {
             _dotNetRef = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("etiquetaPreview.init", _canvasRef, _dotNetRef);
+            try
+            {
+                await JS.InvokeVoidAsync("etiquetaPreview.init", _canvasRef, _dotNetRef);
+            }
+            catch (Exception ex)
+            {
+                // Se o arraste não inicializar (ex: arquivo JS não carregou), pelo menos
+                // deixa um rastro no console do navegador (F12) em vez de falhar em silêncio.
+                await JS.InvokeVoidAsync("console.error", "etiquetaPreview.init falhou: " + ex.Message);
+            }
         }
     }
 

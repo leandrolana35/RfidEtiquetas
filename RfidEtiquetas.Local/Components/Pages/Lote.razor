@@ -386,17 +386,24 @@
             </div>
         }
 
-        @if (_modelo != null)
-        {
-            <div class="card shadow-sm border-0 mt-3">
-                <div class="card-header bg-dark text-white">
-                    <i class="bi bi-eye me-1"></i>Preview (primeiro item)
-                </div>
-                <div class="card-body">
-                    <EtiquetaPreview Modelo="_modelo" CodigoBarras="@PreviewCodigo()" DadoRfid="@PreviewCodigo()" />
-                </div>
+        <div class="card shadow-sm border-0 mt-3">
+            <div class="card-header bg-dark text-white">
+                <i class="bi bi-eye me-1"></i>Preview (primeiro item)
             </div>
-        }
+            <div class="card-body">
+                @if (_modelo == null)
+                {
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-layout-text-sidebar fs-1"></i>
+                        <p class="mb-0">Selecione um modelo (ou um projeto) para ver o preview</p>
+                    </div>
+                }
+                else
+                {
+                    <EtiquetaPreview Modelo="_modelo" CodigoBarras="@PreviewCodigo()" DadoRfid="@PreviewCodigo()" OnPosicaoAlterada="StateHasChanged" />
+                }
+            </div>
+        </div>
 
         <div class="card shadow-sm border-0 mt-3">
             <div class="card-body">
