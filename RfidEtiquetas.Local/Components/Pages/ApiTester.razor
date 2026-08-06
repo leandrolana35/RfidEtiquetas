@@ -1,0 +1,472 @@
+@page "/testar-api"
+@attribute [Authorize(Roles = "Administrador")]
+@using System.Text
+@using System.Text.Json
+@inject AppDbContext Db
+@inject NavigationManager Nav
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Testar API</PageTitle>
+
+<h5 class="mb-3">Testar API</h5>
+
+<div class="alert alert-info small">
+    Esta tela faz chamadas HTTP reais para <code>@Nav.BaseUri</code> — o mesmo endereço que qualquer
+    sistema externo usaria. Use para validar a API REST, o servidor MCP e conferir os Webhooks
+    antes de liberar a integração para terceiros.
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <h6 class="mb-2">0. Chave de API</h6>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label small">X-API-Key</label>
+                <input class="form-control font-monospace" @bind="_apiKey" @bind:event="oninput" placeholder="afx_..." />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Ou gere uma nova para teste, empresa:</label>
+                <select class="form-select" @bind="_empresaIdNovaChave">
+                    <option value="0">-- Selecione --</option>
+                    @foreach (var emp in _empresas)
+                    {
+                        <option value="@emp.Id">@emp.Nome</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-warning w-100" @onclick="GerarChaveTeste">Gerar chave de teste</button>
+            </div>
+        </div>
+        @if (!string.IsNullOrEmpty(_avisoChave))
+        {
+            <div class="alert alert-warning small mt-2 mb-0">@_avisoChave</div>
+        }
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(_aba == "rest" ? "active" : "")" @onclick='() => _aba = "rest"'>API REST</button></li>
+    <li class="nav-item"><button class="nav-link @(_aba == "mcp" ? "active" : "")" @onclick='() => _aba = "mcp"'>Servidor MCP</button></li>
+    <li class="nav-item"><button class="nav-link @(_aba == "webhooks" ? "active" : "")" @onclick='() => _aba = "webhooks"'>Webhooks</button></li>
+</ul>
+
+@if (_aba == "rest")
+{
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <h6>1. Listar impressoras — <code>GET /api/v1/printers</code></h6>
+            <button class="btn btn-outline-warning btn-sm mb-2" @onclick="ListarImpressoras" disabled="@_carregando">Executar</button>
+            @RenderResultado(_resultadoPrinters)
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <h6>2. Enviar impressão — <code>POST /api/v1/print</code></h6>
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <label class="form-label small">EPC</label>
+                    <div class="input-group">
+                        <input class="form-control font-monospace" @bind="_epc" />
+                        <button class="btn btn-outline-secondary" type="button" @onclick="GerarEpc">Gerar</button>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Estação</label>
+                    <select class="form-select" @bind="_estacaoId">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var e in _estacoes)
+                        {
+                            <option value="@e.Id">@e.NomeEstacao (@e.Empresa?.Nome, id @e.Id)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Modelo / Layout</label>
+                    <select class="form-select" @bind="_layoutId">
+                        <option value="0">-- Selecione --</option>
+                        @foreach (var t in _templates)
+                        {
+                            <option value="@t.Id">@t.Modelo (id @t.Id)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">SKU (opcional)</label>
+                    <input class="form-control" @bind="_sku" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Lote (opcional)</label>
+                    <input class="form-control" @bind="_lote" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Projeto (opcional)</label>
+                    <select class="form-select" @bind="_projetoId">
+                        <option value="">-- Nenhum --</option>
+                        @foreach (var p in _projetos)
+                        {
+                            <option value="@p.Id">@p.Codigo — @p.Nome</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Nº sequência (se ligar a projeto)</label>
+                    <input class="form-control" @bind="_numeroSequencia" />
+                </div>
+            </div>
+            <button class="btn btn-warning btn-sm mt-2" @onclick="EnviarImpressao" disabled="@_carregando">Executar</button>
+            @RenderResultado(_resultadoPrint)
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <h6>3. Consultar job — <code>GET /api/v1/jobs/@("{")jobId@("}")</code></h6>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label small">Job Id</label>
+                    <input class="form-control font-monospace" @bind="_jobId" />
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-outline-warning" @onclick="ConsultarJob" disabled="@_carregando">Executar</button>
+                </div>
+            </div>
+            @RenderResultado(_resultadoJob)
+        </div>
+    </div>
+}
+else if (_aba == "mcp")
+{
+    <div class="alert alert-secondary small">
+        Endpoint <code>POST @(Nav.BaseUri)mcp</code>, mesma autenticação por <code>X-API-Key</code>. Os testes abaixo
+        reutilizam o EPC/Estação/Layout escolhidos na aba REST.
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <h6>tools/list</h6>
+            <button class="btn btn-outline-warning btn-sm mb-2" @onclick="McpToolsList" disabled="@_carregando">Executar</button>
+            @RenderResultado(_resultadoMcpList)
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <h6>check_printer_status</h6>
+            <p class="small text-muted mb-1">Usa a Estação selecionada na aba REST (id @_estacaoId).</p>
+            <button class="btn btn-outline-warning btn-sm mb-2" @onclick="McpCheckPrinter" disabled="@_carregando">Executar</button>
+            @RenderResultado(_resultadoMcpCheck)
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <h6>print_rfid_tag</h6>
+            <p class="small text-muted mb-1">Usa EPC/Estação/Layout/SKU/Lote da aba REST.</p>
+            <button class="btn btn-outline-warning btn-sm mb-2" @onclick="McpPrint" disabled="@_carregando">Executar</button>
+            @RenderResultado(_resultadoMcpPrint)
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <h6>search_printed_tags</h6>
+            <button class="btn btn-outline-warning btn-sm mb-2" @onclick="McpSearch" disabled="@_carregando">Executar (últimos 10)</button>
+            @RenderResultado(_resultadoMcpSearch)
+        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-secondary small">
+        Webhooks disparam sozinhos quando um job (impressão) é criado/concluído/falha — não há como
+        "chamar" um webhook manualmente aqui. Rode o teste de impressão na aba REST ou MCP e depois
+        atualize esta lista para ver as entregas mais recentes.
+    </div>
+    <button class="btn btn-outline-warning btn-sm mb-3" @onclick="CarregarWebhooks">Atualizar</button>
+    @foreach (var w in _webhooks)
+    {
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>@w.Url</strong>
+                        <div class="small text-muted">@w.Empresa?.Nome — eventos: @string.Join(", ", w.Eventos)</div>
+                    </div>
+                    <span class="badge @(w.Ativo ? "bg-success" : "bg-secondary")">@(w.Ativo ? "Ativo" : "Revogado")</span>
+                </div>
+                @if (_entregas.TryGetValue(w.Id, out var lista))
+                {
+                    <table class="table table-sm mt-2 mb-0">
+                        <thead><tr><th>Evento</th><th>Status</th><th>Tentativas</th><th>Quando</th></tr></thead>
+                        <tbody>
+                            @foreach (var d in lista)
+                            {
+                                <tr>
+                                    <td class="small">@d.Evento</td>
+                                    <td class="small">@d.Status</td>
+                                    <td class="small">@d.Tentativas</td>
+                                    <td class="small text-muted">@d.CriadoEm.ToLocalTime().ToString("dd/MM HH:mm:ss")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private string _apiKey = "";
+    private string _aba = "rest";
+    private bool _carregando;
+    private string _avisoChave = "";
+
+    private List<Empresa> _empresas = [];
+    private int _empresaIdNovaChave;
+    private List<EstacaoImpressora> _estacoes = [];
+    private List<Etiqueta> _templates = [];
+    private List<Projeto> _projetos = [];
+    private List<WebhookSubscription> _webhooks = [];
+    private Dictionary<int, List<WebhookDelivery>> _entregas = new();
+
+    private string _epc = "";
+    private int _estacaoId;
+    private int _layoutId;
+    private string _sku = "";
+    private string _lote = "";
+    private string _projetoId = "";
+    private string _numeroSequencia = "";
+    private string _jobId = "";
+
+    private string? _resultadoPrinters;
+    private string? _resultadoPrint;
+    private string? _resultadoJob;
+    private string? _resultadoMcpList;
+    private string? _resultadoMcpCheck;
+    private string? _resultadoMcpPrint;
+    private string? _resultadoMcpSearch;
+
+    protected override void OnInitialized()
+    {
+        _empresas = Db.GetEmpresas();
+        _estacoes = Db.GetEstacoes();
+        _templates = Db.GetEtiquetas();
+        _projetos = Db.GetProjetos();
+        _webhooks = Db.GetWebhooks();
+        GerarEpc();
+    }
+
+    private void GerarEpc()
+    {
+        var rnd = Random.Shared;
+        var bytes = new byte[12];
+        rnd.NextBytes(bytes);
+        _epc = "E28011" + Convert.ToHexString(bytes);
+    }
+
+    private void GerarChaveTeste()
+    {
+        if (_empresaIdNovaChave == 0)
+        {
+            _avisoChave = "Selecione a empresa antes de gerar.";
+            return;
+        }
+        var (_, chave) = Db.CriarApiKey($"Teste ({DateTime.Now:dd/MM HH:mm})", _empresaIdNovaChave);
+        _apiKey = chave;
+        _avisoChave = "Chave gerada e preenchida acima. Ela também aparece na tela Chaves de API.";
+    }
+
+    private RenderFragment RenderResultado(string? json) => builder =>
+    {
+        if (string.IsNullOrEmpty(json)) return;
+        builder.OpenElement(0, "pre");
+        builder.AddAttribute(1, "class", "bg-dark text-light p-2 rounded small mb-0 mt-2");
+        builder.AddAttribute(2, "style", "max-height:300px;overflow:auto;white-space:pre-wrap");
+        builder.AddContent(3, json);
+        builder.CloseElement();
+    };
+
+    private HttpClient Cliente()
+    {
+        var c = HttpClientFactory.CreateClient();
+        c.Timeout = TimeSpan.FromSeconds(15);
+        return c;
+    }
+
+    private Uri Url(string caminho) => new(new Uri(Nav.BaseUri), caminho);
+
+    private static readonly JsonSerializerOptions _jsonOpts = new() { WriteIndented = true };
+
+    private async Task<string> Chamar(HttpMethod metodo, string caminho, object? corpo = null)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+            return "Preencha a chave de API (X-API-Key) antes de executar.";
+
+        try
+        {
+            using var cliente = Cliente();
+            using var req = new HttpRequestMessage(metodo, Url(caminho));
+            req.Headers.Add("X-API-Key", _apiKey);
+            if (corpo != null)
+                req.Content = new StringContent(JsonSerializer.Serialize(corpo), Encoding.UTF8, "application/json");
+
+            using var resp = await cliente.SendAsync(req);
+            var texto = await resp.Content.ReadAsStringAsync();
+            var formatado = FormatarJson(texto);
+            return $"{metodo.Method} {caminho}\nStatus: {(int)resp.StatusCode} {resp.StatusCode}\n\n{formatado}";
+        }
+        catch (Exception ex)
+        {
+            return $"Falha na chamada: {ex.Message}";
+        }
+    }
+
+    private static string FormatarJson(string texto)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(texto);
+            return JsonSerializer.Serialize(doc.RootElement, _jsonOpts);
+        }
+        catch
+        {
+            return texto;
+        }
+    }
+
+    private async Task ListarImpressoras()
+    {
+        _carregando = true;
+        _resultadoPrinters = await Chamar(HttpMethod.Get, "api/v1/printers");
+        _carregando = false;
+    }
+
+    private async Task EnviarImpressao()
+    {
+        _carregando = true;
+        var corpo = new
+        {
+            epc = _epc,
+            sku = string.IsNullOrWhiteSpace(_sku) ? null : _sku,
+            lote = string.IsNullOrWhiteSpace(_lote) ? null : _lote,
+            estacaoId = _estacaoId,
+            layoutId = _layoutId,
+            projetoId = string.IsNullOrWhiteSpace(_projetoId) ? (int?)null : int.Parse(_projetoId),
+            numeroSequencia = string.IsNullOrWhiteSpace(_numeroSequencia) ? (long?)null : long.Parse(_numeroSequencia)
+        };
+        var resultado = await Chamar(HttpMethod.Post, "api/v1/print", corpo);
+        _resultadoPrint = resultado;
+
+        var idx = resultado.IndexOf("\"jobId\"", StringComparison.OrdinalIgnoreCase);
+        if (idx >= 0)
+        {
+            var inicio = resultado.IndexOf('"', idx + 8) + 1;
+            var fim = resultado.IndexOf('"', inicio);
+            if (inicio > 0 && fim > inicio)
+                _jobId = resultado[inicio..fim];
+        }
+        _carregando = false;
+    }
+
+    private async Task ConsultarJob()
+    {
+        if (string.IsNullOrWhiteSpace(_jobId))
+        {
+            _resultadoJob = "Informe um Job Id (ou rode o teste de impressão acima primeiro).";
+            return;
+        }
+        _carregando = true;
+        _resultadoJob = await Chamar(HttpMethod.Get, $"api/v1/jobs/{_jobId}");
+        _carregando = false;
+    }
+
+    private async Task<string> ChamarMcp(object rpc)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+            return "Preencha a chave de API (X-API-Key) antes de executar.";
+
+        try
+        {
+            using var cliente = Cliente();
+            using var req = new HttpRequestMessage(HttpMethod.Post, Url("mcp"));
+            req.Headers.Add("X-API-Key", _apiKey);
+            req.Headers.Accept.ParseAdd("application/json, text/event-stream");
+            req.Content = new StringContent(JsonSerializer.Serialize(rpc), Encoding.UTF8, "application/json");
+
+            using var resp = await cliente.SendAsync(req);
+            var texto = await resp.Content.ReadAsStringAsync();
+
+            var linhaDados = texto.Split('\n').FirstOrDefault(l => l.TrimStart().StartsWith("data:"));
+            var conteudo = linhaDados != null ? linhaDados[(linhaDados.IndexOf(':') + 1)..].Trim() : texto;
+
+            return $"POST mcp\nStatus: {(int)resp.StatusCode} {resp.StatusCode}\n\n{FormatarJson(conteudo)}";
+        }
+        catch (Exception ex)
+        {
+            return $"Falha na chamada: {ex.Message}";
+        }
+    }
+
+    private async Task McpToolsList()
+    {
+        _carregando = true;
+        _resultadoMcpList = await ChamarMcp(new { jsonrpc = "2.0", id = 1, method = "tools/list" });
+        _carregando = false;
+    }
+
+    private async Task McpCheckPrinter()
+    {
+        _carregando = true;
+        _resultadoMcpCheck = await ChamarMcp(new
+        {
+            jsonrpc = "2.0",
+            id = 1,
+            method = "tools/call",
+            @params = new { name = "check_printer_status", arguments = new { printer_id = _estacaoId } }
+        });
+        _carregando = false;
+    }
+
+    private async Task McpPrint()
+    {
+        _carregando = true;
+        var labelData = JsonSerializer.Serialize(new
+        {
+            layoutId = _layoutId,
+            sku = string.IsNullOrWhiteSpace(_sku) ? null : _sku,
+            lote = string.IsNullOrWhiteSpace(_lote) ? null : _lote
+        });
+        _resultadoMcpPrint = await ChamarMcp(new
+        {
+            jsonrpc = "2.0",
+            id = 1,
+            method = "tools/call",
+            @params = new { name = "print_rfid_tag", arguments = new { epc = _epc, printer_id = _estacaoId, label_data = labelData } }
+        });
+        _carregando = false;
+    }
+
+    private async Task McpSearch()
+    {
+        _carregando = true;
+        _resultadoMcpSearch = await ChamarMcp(new
+        {
+            jsonrpc = "2.0",
+            id = 1,
+            method = "tools/call",
+            @params = new { name = "search_printed_tags", arguments = new { limit = 10 } }
+        });
+        _carregando = false;
+    }
+
+    private void CarregarWebhooks()
+    {
+        _webhooks = Db.GetWebhooks();
+        _entregas.Clear();
+        foreach (var w in _webhooks)
+            _entregas[w.Id] = Db.GetEntregasRecentes(w.Id, 5);
+    }
+}

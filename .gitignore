@@ -14,3 +14,4 @@ Banco.db-wal
 
 # Logs de execução local (ferramenta de teste)
 *.log
+scripts/
