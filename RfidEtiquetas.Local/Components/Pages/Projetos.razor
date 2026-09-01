@@ -49,25 +49,96 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Sequência inicial</label>
-                    <input type="number" class="form-control" @bind="_projeto.SequenciaInicial" disabled="@(_projeto.Id > 0)" />
+                    <input type="number" class="form-control" @bind="_projeto.SequenciaInicial" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Sequência final</label>
-                    <input type="number" class="form-control" @bind="_projeto.SequenciaFinal" disabled="@(_projeto.Id > 0)" />
+                    <input type="number" class="form-control" @bind="_projeto.SequenciaFinal" />
                 </div>
                 @if (_projeto.Id > 0)
                 {
-                    <div class="col-12"><div class="form-text">A faixa de sequência não pode ser alterada após a criação (já existem tags vinculadas).</div></div>
+                    <div class="col-12"><div class="form-text">Aumentar a faixa cria as novas tags automaticamente. Reduzir só remove tags que ainda não foram impressas nem deram erro — se alguma tag fora da nova faixa já tiver histórico, ajuste o status dela na lista abaixo antes.</div></div>
                 }
                 <div class="col-12 d-flex gap-2 mt-2">
                     <button class="btn btn-warning" @onclick="Salvar">Salvar</button>
                     <button class="btn btn-outline-secondary" @onclick="() => _editando = false">Cancelar</button>
+                    @if (_projeto.Id > 0)
+                    {
+                        <button class="btn btn-outline-dark ms-auto" @onclick="ToggleTags">
+                            <i class="bi bi-list-check me-1"></i>@(_mostrarTags ? "Ocultar tags" : "Ver / editar tags")
+                        </button>
+                    }
                 </div>
                 @if (!string.IsNullOrEmpty(_mensagem))
                 {
                     <div class="col-12"><div class="alert alert-danger py-2 small mb-0">@_mensagem</div></div>
                 }
             </div>
+
+            @if (_mostrarTags && _projeto.Id > 0)
+            {
+                <hr />
+                <h6>Tags do projeto</h6>
+                <div class="row g-2 align-items-end mb-2">
+                    <div class="col-md-3">
+                        <label class="form-label small">Status</label>
+                        <select class="form-select form-select-sm" @bind="_filtroStatus" @bind:after="RecarregarTags">
+                            <option value="">Todas</option>
+                            <option value="NaoImpressa">Não impressa</option>
+                            <option value="Impressa">Impressa</option>
+                            <option value="Erro">Erro</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Buscar nº sequência</label>
+                        <input class="form-control form-control-sm" @bind="_filtroNumero" @bind:event="oninput" @bind:after="RecarregarTags" />
+                    </div>
+                    <div class="col-md-6 text-end small text-muted">
+                        Mostrando @_tagsExibidas.Count de @_tagsFiltradasTotal
+                    </div>
+                </div>
+                <div style="max-height:400px;overflow:auto">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Nº</th><th>Status</th><th>Código de barras</th><th>Dado RFID</th><th>Estação</th><th>Erro</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in _tagsExibidas)
+                            {
+                                <tr>
+                                    <td class="align-middle">@t.NumeroSequencia</td>
+                                    <td>
+                                        <select class="form-select form-select-sm" @bind="t.Status">
+                                            <option value="NaoImpressa">Não impressa</option>
+                                            <option value="Impressa">Impressa</option>
+                                            <option value="Erro">Erro</option>
+                                        </select>
+                                    </td>
+                                    <td><input class="form-control form-control-sm" @bind="t.CodigoBarras" /></td>
+                                    <td><input class="form-control form-control-sm" @bind="t.DadoRfid" /></td>
+                                    <td>
+                                        <select class="form-select form-select-sm" @bind="t.EstacaoId">
+                                            <option value="">--</option>
+                                            @foreach (var e in _estacoes)
+                                            {
+                                                <option value="@e.Id">@e.NomeEstacao</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td><input class="form-control form-control-sm" @bind="t.MensagemErro" /></td>
+                                    <td><button class="btn btn-sm btn-outline-success" @onclick="() => SalvarTag(t)">Salvar</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (_tagsFiltradasTotal > _tagsExibidas.Count)
+                {
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="CarregarMaisTags">Carregar mais</button>
+                }
+            }
         </div>
     </div>
 }
@@ -102,24 +173,34 @@
 </table>
 
 @code {
+    private const int TamanhoPagina = 100;
+
     private List<Projeto> _lista = [];
     private List<Empresa> _empresas = [];
     private List<Etiqueta> _modelos = [];
+    private List<EstacaoImpressora> _estacoes = [];
     private Projeto _projeto = new();
     private bool _editando;
     private string _mensagem = "";
+
+    private bool _mostrarTags;
+    private string _filtroStatus = "";
+    private string _filtroNumero = "";
+    private List<TagRegistro> _tagsExibidas = [];
+    private int _tagsFiltradasTotal;
 
     protected override void OnInitialized()
     {
         _lista = Db.GetProjetos();
         _empresas = Db.GetEmpresas();
         _modelos = Db.GetEtiquetas();
+        _estacoes = Db.GetEstacoes();
     }
 
     private void Novo()
     {
         _projeto = new() { SequenciaInicial = 1, SequenciaFinal = 100 };
-        _mensagem = ""; _editando = true;
+        _mensagem = ""; _editando = true; _mostrarTags = false;
         _modelos = Db.GetEtiquetas();
         _empresas = Db.GetEmpresas();
     }
@@ -129,7 +210,7 @@
         var p = Db.GetProjeto(id);
         if (p == null) return;
         _projeto = p;
-        _mensagem = ""; _editando = true;
+        _mensagem = ""; _editando = true; _mostrarTags = false;
         _modelos = Db.GetEtiquetas();
         _empresas = Db.GetEmpresas();
     }
@@ -148,8 +229,41 @@
             return;
         }
 
-        Db.SalvarProjeto(_projeto);
+        var erro = Db.SalvarProjeto(_projeto);
+        if (erro != null)
+        {
+            _mensagem = erro;
+            return;
+        }
+
+        _mensagem = "";
         _editando = false;
+        _lista = Db.GetProjetos();
+    }
+
+    private StatusTag? FiltroStatusEnum =>
+        Enum.TryParse<StatusTag>(_filtroStatus, out var s) ? s : null;
+
+    private void ToggleTags()
+    {
+        _mostrarTags = !_mostrarTags;
+        if (_mostrarTags) RecarregarTags();
+    }
+
+    private void RecarregarTags()
+    {
+        _tagsExibidas = Db.GetTagsDoProjetoFiltradas(_projeto.Id, FiltroStatusEnum, _filtroNumero, TamanhoPagina);
+        _tagsFiltradasTotal = Db.CountTagsDoProjetoFiltradas(_projeto.Id, FiltroStatusEnum, _filtroNumero);
+    }
+
+    private void CarregarMaisTags()
+    {
+        _tagsExibidas = Db.GetTagsDoProjetoFiltradas(_projeto.Id, FiltroStatusEnum, _filtroNumero, _tagsExibidas.Count + TamanhoPagina);
+    }
+
+    private void SalvarTag(TagRegistro t)
+    {
+        Db.AtualizarTagRegistro(t.Id, t.Status, t.CodigoBarras, t.DadoRfid, t.MensagemErro, t.EstacaoId);
         _lista = Db.GetProjetos();
     }
 }

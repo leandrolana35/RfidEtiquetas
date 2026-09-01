@@ -184,26 +184,78 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
     /// Cria o Projeto e já popula um TagRegistro (status NaoImpressa) para cada
     /// número entre SequenciaInicial e SequenciaFinal, para o dashboard poder
     /// mostrar contagem imediatamente, sem esperar a primeira impressão.
+    /// Em edição, a faixa também pode mudar: números novos ganham TagRegistro
+    /// na hora; números removidos só são apagados se ainda não tiverem
+    /// histórico (nunca apaga uma tag já impressa ou com erro silenciosamente).
     /// </summary>
-    public int SalvarProjeto(Projeto p)
+    /// <returns>Mensagem de erro, ou null se salvou com sucesso.</returns>
+    public string? SalvarProjeto(Projeto p)
     {
         bool novo = p.Id == 0;
-        if (novo) Projetos.Add(p);
-        else Projetos.Update(p);
-        SaveChanges();
-
         if (novo)
         {
+            Projetos.Add(p);
+            SaveChanges();
+
             for (long n = p.SequenciaInicial; n <= p.SequenciaFinal; n++)
                 TagRegistros.Add(new TagRegistro { ProjetoId = p.Id, NumeroSequencia = n });
             SaveChanges();
+            return null;
         }
 
-        return p.Id;
+        var existente = Projetos.AsNoTracking().First(x => x.Id == p.Id);
+        if (existente.SequenciaInicial != p.SequenciaInicial || existente.SequenciaFinal != p.SequenciaFinal)
+        {
+            var todasTags = TagRegistros.Where(t => t.ProjetoId == p.Id).ToList();
+            var foraDaFaixa = todasTags.Where(t => t.NumeroSequencia < p.SequenciaInicial || t.NumeroSequencia > p.SequenciaFinal).ToList();
+            var comHistorico = foraDaFaixa.Where(t => t.Status != StatusTag.NaoImpressa).ToList();
+            if (comHistorico.Count > 0)
+                return $"Não é possível reduzir a faixa: {comHistorico.Count} tag(s) fora da nova faixa já têm histórico (impressa ou erro). Ajuste o status delas primeiro na lista de tags abaixo.";
+
+            TagRegistros.RemoveRange(foraDaFaixa);
+            var numerosRestantes = todasTags.Select(t => t.NumeroSequencia).Except(foraDaFaixa.Select(t => t.NumeroSequencia)).ToHashSet();
+            for (long n = p.SequenciaInicial; n <= p.SequenciaFinal; n++)
+                if (!numerosRestantes.Contains(n))
+                    TagRegistros.Add(new TagRegistro { ProjetoId = p.Id, NumeroSequencia = n });
+        }
+
+        Projetos.Update(p);
+        SaveChanges();
+        return null;
     }
 
     public List<TagRegistro> GetTagsDoProjeto(int projetoId)
         => TagRegistros.Where(t => t.ProjetoId == projetoId).OrderBy(t => t.NumeroSequencia).ToList();
+
+    private IQueryable<TagRegistro> FiltrarTagsDoProjeto(int projetoId, StatusTag? status, string? numeroBusca)
+    {
+        var q = TagRegistros.Where(t => t.ProjetoId == projetoId);
+        if (status.HasValue) q = q.Where(t => t.Status == status.Value);
+        if (!string.IsNullOrWhiteSpace(numeroBusca) && long.TryParse(numeroBusca, out var num))
+            q = q.Where(t => t.NumeroSequencia == num);
+        return q;
+    }
+
+    /// <summary>Usada pela lista editável de tags em Projetos.razor — carrega em páginas, não tudo de uma vez.</summary>
+    public List<TagRegistro> GetTagsDoProjetoFiltradas(int projetoId, StatusTag? status, string? numeroBusca, int take)
+        => FiltrarTagsDoProjeto(projetoId, status, numeroBusca).OrderBy(t => t.NumeroSequencia).Take(take).ToList();
+
+    public int CountTagsDoProjetoFiltradas(int projetoId, StatusTag? status, string? numeroBusca)
+        => FiltrarTagsDoProjeto(projetoId, status, numeroBusca).Count();
+
+    /// <summary>Edição manual completa de uma tag — usada pela tela de Projetos (Administrador).</summary>
+    public void AtualizarTagRegistro(long id, StatusTag status, string? codigoBarras, string? dadoRfid, string? mensagemErro, int? estacaoId)
+    {
+        var tag = TagRegistros.FirstOrDefault(t => t.Id == id);
+        if (tag == null) return;
+        tag.Status = status;
+        tag.CodigoBarras = string.IsNullOrWhiteSpace(codigoBarras) ? null : codigoBarras;
+        tag.DadoRfid = string.IsNullOrWhiteSpace(dadoRfid) ? null : dadoRfid;
+        tag.MensagemErro = string.IsNullOrWhiteSpace(mensagemErro) ? null : mensagemErro;
+        tag.EstacaoId = estacaoId;
+        tag.DataImpressao = status == StatusTag.Impressa ? (tag.DataImpressao ?? DateTime.UtcNow) : null;
+        SaveChanges();
+    }
 
     /// <summary>Próximo item ainda não impresso (ou com erro, para permitir reimpressão) do projeto.</summary>
     public TagRegistro? ProximaTagPendente(int projetoId)
