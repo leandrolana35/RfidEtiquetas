@@ -12,6 +12,11 @@ using RfidEtiquetas.Shared.Services.Printing;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Permite rodar como Serviço do Windows de verdade (sc.exe create) — sem isso
+// o processo não entende o protocolo de start/stop do Service Control Manager
+// e o Windows reporta falha ao iniciar o serviço.
+builder.Host.UseWindowsService();
+
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddControllers();
