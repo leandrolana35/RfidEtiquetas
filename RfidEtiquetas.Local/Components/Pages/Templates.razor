@@ -3,6 +3,9 @@
 @attribute [Authorize]
 @inject AppDbContext Db
 @inject NavigationManager Nav
+@inject IWebHostEnvironment Env
+@using System.IO
+@using Microsoft.AspNetCore.Components.Forms
 
 <PageTitle>Modelos de Etiqueta</PageTitle>
 
@@ -275,8 +278,16 @@
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small">Arquivo de imagem</label>
-                            <input class="form-control" @bind="_modelo.LogoArquivo" disabled="@(!_modelo.LogoImprimir)" placeholder="C:\imagens\logo.bmp" />
+                            <label class="form-label small">Imagem do logo</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <InputFile class="form-control form-control-sm" OnChange="CarregarLogo"
+                                           accept="image/*" disabled="@(!_modelo.LogoImprimir)" />
+                                @if (!string.IsNullOrWhiteSpace(_modelo.LogoArquivo) && EhUrlImagem(_modelo.LogoArquivo))
+                                {
+                                    <img src="@_modelo.LogoArquivo" alt="logo" style="height:36px;border:1px solid #ddd;border-radius:4px" />
+                                }
+                            </div>
+                            <div class="form-text">@(_modelo.LogoArquivo ?? "")</div>
                         </div>
                         <div class="col-md-1">
                             <label class="form-label small">X</label>
@@ -375,6 +386,38 @@ else
     private bool _editando;
     private string _mensagem = "";
     private bool _erro;
+
+    private static bool EhUrlImagem(string? s)
+        => !string.IsNullOrWhiteSpace(s) && (s.StartsWith("/") || s.StartsWith("http"));
+
+    private async Task CarregarLogo(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            var ext = Path.GetExtension(file.Name);
+            if (string.IsNullOrWhiteSpace(ext)) ext = ".png";
+            var dir = Path.Combine(Env.WebRootPath, "logos");
+            Directory.CreateDirectory(dir);
+            var nome = $"logo_{Guid.NewGuid():N}{ext}";
+            var caminho = Path.Combine(dir, nome);
+            await using (var fs = File.Create(caminho))
+                await file.OpenReadStream(5 * 1024 * 1024).CopyToAsync(fs);
+
+            _modelo.LogoArquivo = $"/logos/{nome}";
+            _modelo.LogoImprimir = true;
+            // Se as dimensões estiverem zeradas/grandes, aplica um tamanho padrão razoável (mm)
+            if (_modelo.LogoLargura <= 0 || _modelo.LogoLargura > _modelo.LarguraMm)
+                _modelo.LogoLargura = Math.Min(13, _modelo.LarguraMm);
+            if (_modelo.LogoAltura <= 0 || _modelo.LogoAltura > _modelo.AlturaMm)
+                _modelo.LogoAltura = Math.Min(13, _modelo.AlturaMm);
+            _mensagem = "Logo carregado."; _erro = false;
+        }
+        catch (Exception ex)
+        {
+            _mensagem = "Erro ao carregar logo: " + ex.Message; _erro = true;
+        }
+    }
 
     protected override void OnInitialized()
     {

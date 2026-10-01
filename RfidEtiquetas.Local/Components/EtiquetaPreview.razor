@@ -34,11 +34,24 @@
     }
     @if (Modelo.LogoImprimir && !string.IsNullOrWhiteSpace(Modelo.LogoArquivo))
     {
-        <div class="preview-item bg-secondary bg-opacity-25 border d-flex align-items-center justify-content-center text-muted"
-             data-drag-id="logo"
-             style="left:@(Px(Modelo.LogoX).ToString(CultureInfo.InvariantCulture))px;top:@(Px(Modelo.LogoY).ToString(CultureInfo.InvariantCulture))px;width:@(Math.Max(16, Modelo.LogoLargura * PxPerMm).ToString(CultureInfo.InvariantCulture))px;height:@(Math.Max(16, Modelo.LogoAltura * PxPerMm).ToString(CultureInfo.InvariantCulture))px">
-            <i class="bi bi-image"></i>
-        </div>
+        var lw = Math.Max(16, Modelo.LogoLargura * PxPerMm).ToString(CultureInfo.InvariantCulture);
+        var lh = Math.Max(16, Modelo.LogoAltura * PxPerMm).ToString(CultureInfo.InvariantCulture);
+        var lx = Px(Modelo.LogoX).ToString(CultureInfo.InvariantCulture);
+        var ly = Px(Modelo.LogoY).ToString(CultureInfo.InvariantCulture);
+        if (LogoEhImagem)
+        {
+            <img class="preview-item" data-drag-id="logo"
+                 style="left:@(lx)px;top:@(ly)px;width:@(lw)px;height:@(lh)px;object-fit:contain"
+                 src="@Modelo.LogoArquivo" />
+        }
+        else
+        {
+            <div class="preview-item bg-secondary bg-opacity-25 border d-flex align-items-center justify-content-center text-muted"
+                 data-drag-id="logo"
+                 style="left:@(lx)px;top:@(ly)px;width:@(lw)px;height:@(lh)px">
+                <i class="bi bi-image"></i>
+            </div>
+        }
     }
 </div>
 <div class="small text-muted mt-1">
@@ -62,6 +75,10 @@
     private string _ultimoCodigoRenderizado = "";
 
     private string ValorPreview => string.IsNullOrEmpty(DadoRfid) ? "" : DadoRfid;
+
+    // Logo renderizável no navegador (URL servida pelo app) vs. caminho local/impressora (placeholder)
+    private bool LogoEhImagem => !string.IsNullOrWhiteSpace(Modelo.LogoArquivo)
+        && (Modelo.LogoArquivo.StartsWith("/") || Modelo.LogoArquivo.StartsWith("http"));
 
     // Escala para caber num espaço confortável de visualização, preservando a proporção real.
     private double PxPerMm => Math.Clamp(380.0 / Math.Max(1, Modelo.LarguraMm), 1.5, 10.0);
