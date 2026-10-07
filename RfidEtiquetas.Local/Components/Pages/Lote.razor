@@ -268,6 +268,9 @@
                                         @(_selecionadas.Count > 0 ? (_progresso * 100 / _selecionadas.Count) : 0)%
                                     </div>
                                 </div>
+                                <button class="btn btn-outline-danger btn-sm w-100 mt-1" @onclick="CancelarImpressao">
+                                    <i class="bi bi-x-circle me-1"></i>Cancelar impressão
+                                </button>
                             </div>
                         }
 
@@ -351,6 +354,9 @@
                                         @(_lista.Count > 0 ? (_progresso * 100 / _lista.Count) : 0)%
                                     </div>
                                 </div>
+                                <button class="btn btn-outline-danger btn-sm w-100 mt-1" @onclick="CancelarImpressao">
+                                    <i class="bi bi-x-circle me-1"></i>Cancelar impressão
+                                </button>
                             </div>
                         }
 
@@ -477,6 +483,14 @@
     private int _progresso;
     private string _resultado = "";
     private bool _resultadoErro;
+    private CancellationTokenSource? _cts;
+
+    private void CancelarImpressao()
+    {
+        _cts?.Cancel();                       // para de enviar novas etiquetas
+        if (_estacao != null)
+            Printer.CancelarImpressora(_estacao);  // limpa o buffer da impressora (~JA)
+    }
 
     private bool PodeImprimir => _modeloId > 0 && _estacao != null && _lista.Count > 0;
 
@@ -623,23 +637,27 @@
         _imprimindo = true;
         _progresso = 0;
         _resultado = "";
+        _cts = new CancellationTokenSource();
         StateHasChanged();
 
         var itens = _lista.Select(c => (CodigoBarras: c, DadoRfid: c)).ToList();
         var estacao = _estacao;
+        var token = _cts.Token;
 
         var resultado = await Task.Run(() =>
             Printer.ImprimirLote(modelo, itens, estacao, _intervalo, feitos =>
             {
                 _progresso = feitos;
                 InvokeAsync(StateHasChanged);
-            }));
+            }, token));
 
         _imprimindo = false;
-        _resultadoErro = !resultado.Sucesso;
-        _resultado = resultado.Sucesso
-            ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
-            : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
+        _resultadoErro = !resultado.Sucesso && !resultado.Cancelado;
+        _resultado = resultado.Cancelado
+            ? $"Cancelado pelo usuário após {resultado.Impressos} de {resultado.Total} etiquetas."
+            : resultado.Sucesso
+                ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
+                : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
     }
 
     private async Task ImprimirSelecionadas()
@@ -651,30 +669,35 @@
         _imprimindo = true;
         _progresso = 0;
         _resultado = "";
+        _cts = new CancellationTokenSource();
         StateHasChanged();
 
         var itens = selecionadas.Select(t => (CodigoBarras: t.NumeroSequencia.ToString(), DadoRfid: t.NumeroSequencia.ToString())).ToList();
         var estacao = _estacao;
         var modelo = _modelo;
+        var token = _cts.Token;
 
         var resultado = await Task.Run(() =>
             Printer.ImprimirLote(modelo, itens, estacao, _intervalo, feitos =>
             {
                 _progresso = feitos;
                 InvokeAsync(StateHasChanged);
-            }));
+            }, token));
 
         _imprimindo = false;
-        _resultadoErro = !resultado.Sucesso;
-        _resultado = resultado.Sucesso
-            ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
-            : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
+        _resultadoErro = !resultado.Sucesso && !resultado.Cancelado;
+        _resultado = resultado.Cancelado
+            ? $"Cancelado pelo usuário após {resultado.Impressos} de {resultado.Total} etiquetas."
+            : resultado.Sucesso
+                ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
+                : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
 
-        // O lote para no primeiro erro — os primeiros N (na mesma ordem enviada) tiveram sucesso.
+        // O lote para no primeiro erro (ou no cancelamento) — os primeiros N
+        // (na mesma ordem enviada) tiveram sucesso e já saíram fisicamente da impressora.
         for (int i = 0; i < resultado.Impressos && i < selecionadas.Count; i++)
             Db.MarcarTag(selecionadas[i].Id, StatusTag.Impressa, estacao.Id);
 
-        if (!resultado.Sucesso && resultado.Impressos < selecionadas.Count)
+        if (!resultado.Sucesso && !resultado.Cancelado && resultado.Impressos < selecionadas.Count)
             Db.MarcarTag(selecionadas[resultado.Impressos].Id, StatusTag.Erro, estacao.Id, resultado.Erro);
 
         _selecionadas.Clear();

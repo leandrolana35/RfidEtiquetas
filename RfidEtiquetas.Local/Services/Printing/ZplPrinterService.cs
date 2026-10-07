@@ -58,7 +58,8 @@ public class ZplPrinterService : IPrinterService
         List<(string CodigoBarras, string DadoRfid)> itens,
         EstacaoImpressora estacao,
         int intervaloMs = 1000,
-        Action<int>? onProgresso = null)
+        Action<int>? onProgresso = null,
+        CancellationToken cancelamento = default)
     {
         var perfil = PrinterProfile.Para(estacao.ModeloImpressora);
 
@@ -76,13 +77,14 @@ public class ZplPrinterService : IPrinterService
                 using var stream = cliente.GetStream();
                 foreach (var item in itens)
                 {
+                    cancelamento.ThrowIfCancellationRequested();
                     var zpl = _zplBuilder.Montar(template, item.CodigoBarras, item.DadoRfid, perfil, out _);
                     var bytes = Encoding.ASCII.GetBytes(zpl);
                     stream.Write(bytes, 0, bytes.Length);
                     stream.Flush();
                     feitos++;
                     onProgresso?.Invoke(feitos);
-                    PausarEntreEtiquetas(intervaloMs);
+                    PausarEntreEtiquetas(intervaloMs, cancelamento);
                 }
             }
             else
@@ -95,17 +97,22 @@ public class ZplPrinterService : IPrinterService
                 porta.Open();
                 foreach (var item in itens)
                 {
+                    cancelamento.ThrowIfCancellationRequested();
                     var zpl = _zplBuilder.Montar(template, item.CodigoBarras, item.DadoRfid, perfil, out _);
                     var bytes = Encoding.ASCII.GetBytes(zpl);
                     porta.Write(bytes, 0, bytes.Length);
                     feitos++;
                     onProgresso?.Invoke(feitos);
-                    PausarEntreEtiquetas(intervaloMs);
+                    PausarEntreEtiquetas(intervaloMs, cancelamento);
                 }
                 porta.Close();
             }
 
             return new(true, feitos, itens.Count, null);
+        }
+        catch (OperationCanceledException)
+        {
+            return new(false, feitos, itens.Count, null, Cancelado: true);
         }
         catch (Exception ex)
         {
@@ -113,10 +120,14 @@ public class ZplPrinterService : IPrinterService
         }
     }
 
-    private static void PausarEntreEtiquetas(int intervaloMs)
+    private static void PausarEntreEtiquetas(int intervaloMs, CancellationToken cancelamento = default)
     {
         if (intervaloMs > 0)
-            Thread.Sleep(Math.Min(intervaloMs, 5000));
+        {
+            try { Task.Delay(Math.Min(intervaloMs, 5000), cancelamento).Wait(cancelamento); }
+            catch (OperationCanceledException) { throw; }
+            catch (AggregateException ae) when (ae.InnerException is OperationCanceledException) { throw new OperationCanceledException(); }
+        }
     }
 
     private static void EnviarPorCom(byte[] bytes, string portaCom, int baudRate)
@@ -142,6 +153,27 @@ public class ZplPrinterService : IPrinterService
         using var stream = cliente.GetStream();
         stream.Write(bytes, 0, bytes.Length);
         stream.Flush();
+    }
+
+    /// <summary>
+    /// Envia o comando de cancelar/limpar a fila da impressora (~JA).
+    /// Interrompe imediatamente as etiquetas que já estão no buffer da impressora.
+    /// Best-effort: não lança exceção (o cancelamento do envio já foi feito via token).
+    /// </summary>
+    public void CancelarImpressora(EstacaoImpressora estacao)
+    {
+        try
+        {
+            var bytes = Encoding.ASCII.GetBytes("~JA");
+            if (estacao.TipoConexao == TipoConexaoImpressora.Rede)
+                EnviarPorRede(bytes, estacao.ImpressoraIp, estacao.ImpressoraPorta);
+            else
+                EnviarPorCom(bytes, estacao.PortaCom, estacao.BaudRate);
+        }
+        catch
+        {
+            // ignora — o envio de novas etiquetas já foi interrompido pelo token
+        }
     }
 
     /// <summary>
