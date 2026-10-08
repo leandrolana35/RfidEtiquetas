@@ -225,11 +225,12 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
     }
 
     public List<TagRegistro> GetTagsDoProjeto(int projetoId)
-        => TagRegistros.Where(t => t.ProjetoId == projetoId).OrderBy(t => t.NumeroSequencia).ToList();
+        => TagRegistros.AsNoTracking().Where(t => t.ProjetoId == projetoId).OrderBy(t => t.NumeroSequencia).ToList();
 
     private IQueryable<TagRegistro> FiltrarTagsDoProjeto(int projetoId, StatusTag? status, string? numeroBusca)
     {
-        var q = TagRegistros.Where(t => t.ProjetoId == projetoId);
+        // AsNoTracking: sempre lê o estado atual do banco (evita status "preso" em cache da sessão Blazor)
+        var q = TagRegistros.AsNoTracking().Where(t => t.ProjetoId == projetoId);
         if (status.HasValue) q = q.Where(t => t.Status == status.Value);
         if (!string.IsNullOrWhiteSpace(numeroBusca) && long.TryParse(numeroBusca, out var num))
             q = q.Where(t => t.NumeroSequencia == num);

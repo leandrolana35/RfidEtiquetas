@@ -196,7 +196,13 @@
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                     <span>3. Tags do projeto</span>
-                    <span class="badge bg-warning text-dark">@_selecionadas.Count selecionadas</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-outline-light" @onclick="AtualizarTagsProjeto"
+                                disabled="@_imprimindo" title="Recarregar o status das tags do banco">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+                        </button>
+                        <span class="badge bg-warning text-dark">@_selecionadas.Count selecionadas</span>
+                    </div>
                 </div>
                 <div class="card-body">
                     @{ var filtradas = TagsFiltradas().ToList(); }
@@ -525,6 +531,14 @@
 
         _modeloId = _projeto.EtiquetaTemplateId;
         CarregarModelo();
+        _todasTags = Db.GetTagsDoProjeto(_projeto.Id);
+    }
+
+    // Recarrega o status das tags direto do banco (descarta cache da sessão).
+    private void AtualizarTagsProjeto()
+    {
+        if (_projeto == null) return;
+        Db.ChangeTracker.Clear();
         _todasTags = Db.GetTagsDoProjeto(_projeto.Id);
     }
 
