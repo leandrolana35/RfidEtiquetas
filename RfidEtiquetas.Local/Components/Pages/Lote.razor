@@ -179,7 +179,7 @@
 
                     <hr />
                     <label class="form-label small">Filtrar lista por status</label>
-                    <select class="form-select form-select-sm" @bind="_filtroStatus">
+                    <select class="form-select form-select-sm" @bind="_filtroStatus" @bind:after="ResetPagina">
                         <option value="pendentes">Não impressas</option>
                         <option value="impressas">Impressas</option>
                         <option value="erros">Com erro</option>
@@ -205,7 +205,12 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    @{ var filtradas = TagsFiltradas().ToList(); }
+                    @{
+                        var filtradas = TagsFiltradas().ToList();
+                        var totalPaginas = Math.Max(1, (int)Math.Ceiling(filtradas.Count / (double)_exibirQtd));
+                        if (_pagina >= totalPaginas) _pagina = totalPaginas - 1;
+                        var exibidas = filtradas.Skip(_pagina * _exibirQtd).Take(_exibirQtd).ToList();
+                    }
                     @if (_todasTags.Count == 0)
                     {
                         <div class="text-center text-muted py-4">
@@ -215,20 +220,42 @@
                     }
                     else
                     {
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox"
-                                   checked="@(filtradas.Count > 0 && filtradas.All(t => _selecionadas.Contains(t.Id)))"
-                                   @onchange="@(e => SelecionarTodasFiltradas((bool)e.Value!, filtradas))" id="selTudo" />
-                            <label class="form-check-label small" for="selTudo">Selecionar todas as @filtradas.Count exibidas abaixo</label>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                            <div class="d-flex align-items-center gap-1">
+                                <label class="form-label small mb-0">Exibir</label>
+                                <select class="form-select form-select-sm" style="width:auto" @bind="_exibirQtd" @bind:after="ResetPagina">
+                                    <option value="300">300</option>
+                                    <option value="500">500</option>
+                                    <option value="1000">1000</option>
+                                    <option value="3000">3000</option>
+                                </select>
+                            </div>
+                            <div class="d-flex align-items-center gap-1">
+                                <label class="form-label small mb-0">Ordem</label>
+                                <select class="form-select form-select-sm" style="width:auto" @bind="_ordemDesc" @bind:after="ResetPagina">
+                                    <option value="false">Crescente</option>
+                                    <option value="true">Decrescente</option>
+                                </select>
+                            </div>
+                            <span class="small text-muted ms-auto">
+                                @(filtradas.Count == 0 ? 0 : _pagina * _exibirQtd + 1)–@(Math.Min((_pagina + 1) * _exibirQtd, filtradas.Count)) de @filtradas.Count
+                            </span>
                         </div>
 
-                        <div style="max-height:320px;overflow:auto" class="border rounded mb-3">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox"
+                                   checked="@(exibidas.Count > 0 && exibidas.All(t => _selecionadas.Contains(t.Id)))"
+                                   @onchange="@(e => SelecionarTodasFiltradas((bool)e.Value!, exibidas))" id="selTudo" />
+                            <label class="form-check-label small" for="selTudo">Selecionar as @exibidas.Count exibidas abaixo</label>
+                        </div>
+
+                        <div style="max-height:320px;overflow:auto" class="border rounded mb-2">
                             <table class="table table-sm table-striped mb-0">
                                 <thead class="sticky-top bg-light">
                                     <tr><th style="width:36px"></th><th>Sequência</th><th>Status</th><th>Impressa em</th></tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var t in filtradas.Take(300))
+                                    @foreach (var t in exibidas)
                                     {
                                         <tr>
                                             <td>
@@ -255,10 +282,16 @@
                                     }
                                 </tbody>
                             </table>
-                            @if (filtradas.Count > 300)
-                            {
-                                <div class="small text-muted p-2">Mostrando as primeiras 300 de @filtradas.Count (os botões "Próximas N" e "Selecionar faixa" funcionam mesmo além do que está visível aqui).</div>
-                            }
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="PaginaAnterior" disabled="@(_pagina == 0)">
+                                <i class="bi bi-chevron-left me-1"></i>Anteriores
+                            </button>
+                            <span class="small text-muted">Página @(_pagina + 1) de @totalPaginas</span>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => PaginaProxima(totalPaginas))" disabled="@(_pagina + 1 >= totalPaginas)">
+                                Próximas<i class="bi bi-chevron-right ms-1"></i>
+                            </button>
                         </div>
 
                         @if (_imprimindo)
@@ -458,6 +491,11 @@
     private long? _faixaDe;
     private long? _faixaAte;
 
+    // Exibição da lista: quantidade por página, página atual e ordem
+    private int _exibirQtd = 300;
+    private int _pagina;
+    private bool _ordemDesc;
+
     private int _modo; // 0 = sequência, 1 = arquivo
 
     // Sequência
@@ -525,7 +563,7 @@
     private void OnProjetoChanged()
     {
         _projeto = _projetoId > 0 ? Db.GetProjeto(_projetoId) : null;
-        _resultado = ""; _lista = []; _selecionadas.Clear(); _faixaDe = null; _faixaAte = null;
+        _resultado = ""; _lista = []; _selecionadas.Clear(); _faixaDe = null; _faixaAte = null; _pagina = 0;
 
         if (_projeto == null) { _todasTags = []; return; }
 
@@ -542,14 +580,24 @@
         _todasTags = Db.GetTagsDoProjeto(_projeto.Id);
     }
 
-    private IEnumerable<TagRegistro> TagsFiltradas() => _todasTags.Where(t =>
-        _filtroStatus switch
-        {
-            "impressas" => t.Status == StatusTag.Impressa,
-            "erros" => t.Status == StatusTag.Erro,
-            "todas" => true,
-            _ => t.Status != StatusTag.Impressa
-        });
+    private IEnumerable<TagRegistro> TagsFiltradas()
+    {
+        var q = _todasTags.Where(t =>
+            _filtroStatus switch
+            {
+                "impressas" => t.Status == StatusTag.Impressa,
+                "erros" => t.Status == StatusTag.Erro,
+                "todas" => true,
+                _ => t.Status != StatusTag.Impressa
+            });
+        return _ordemDesc
+            ? q.OrderByDescending(t => t.NumeroSequencia)
+            : q.OrderBy(t => t.NumeroSequencia);
+    }
+
+    private void ResetPagina() => _pagina = 0;
+    private void PaginaAnterior() { if (_pagina > 0) _pagina--; }
+    private void PaginaProxima(int totalPaginas) { if (_pagina + 1 < totalPaginas) _pagina++; }
 
     private void Alternar(long id, bool marcado)
     {
