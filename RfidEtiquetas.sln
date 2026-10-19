@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RfidEtiquetas.Web", "RfidEt
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RfidEtiquetas.ImportTool", "RfidEtiquetas.ImportTool\RfidEtiquetas.ImportTool.csproj", "{0E9B53B9-DFB8-4865-AAB4-301EFC42D472}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RfidEtiquetas.Desktop", "RfidEtiquetas.Desktop\RfidEtiquetas.Desktop.csproj", "{348FC4BD-9B1D-4DE7-BBEA-D3B7B2AFCA62}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{0E9B53B9-DFB8-4865-AAB4-301EFC42D472}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0E9B53B9-DFB8-4865-AAB4-301EFC42D472}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0E9B53B9-DFB8-4865-AAB4-301EFC42D472}.Release|Any CPU.Build.0 = Release|Any CPU
+		{348FC4BD-9B1D-4DE7-BBEA-D3B7B2AFCA62}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{348FC4BD-9B1D-4DE7-BBEA-D3B7B2AFCA62}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{348FC4BD-9B1D-4DE7-BBEA-D3B7B2AFCA62}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{348FC4BD-9B1D-4DE7-BBEA-D3B7B2AFCA62}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

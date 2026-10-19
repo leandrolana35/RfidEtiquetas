@@ -15,3 +15,6 @@ Banco.db-wal
 # Logs de execução local (ferramenta de teste)
 *.log
 scripts/
+
+# POC desktop - nao versionar conexao
+RfidEtiquetas.Desktop/appsettings.json

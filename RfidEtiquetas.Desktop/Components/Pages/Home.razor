@@ -1,0 +1,124 @@
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+<div class="container py-3">
+    <div class="d-flex align-items-center mb-2">
+        <h4 class="mb-0"><i class="bi bi-printer me-2"></i>AFIXPrint — Desktop</h4>
+        <span class="badge bg-success ms-2">app nativo (POC)</span>
+    </div>
+    <p class="text-muted small">
+        Aplicação Windows nativa (WPF + BlazorWebView). Os componentes Blazor rodam
+        <b>no próprio processo</b> — sem navegador e sem servidor/SignalR (por isso não existe o
+        problema do "circuito" que travava o botão de atualizar).
+    </p>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <label class="form-label small">Projeto</label>
+            <div class="d-flex gap-2">
+                <select class="form-select" @bind="_projetoId" @bind:after="Carregar">
+                    <option value="0">— selecione —</option>
+                    @foreach (var p in _projetos)
+                    {
+                        <option value="@p.Id">@p.Codigo — @p.Nome</option>
+                    }
+                </select>
+                <button class="btn btn-outline-primary text-nowrap" @onclick="Carregar" disabled="@(_projetoId == 0)">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+                </button>
+            </div>
+            @if (_erro is not null)
+            {
+                <div class="text-danger small mt-2">@_erro</div>
+            }
+        </div>
+    </div>
+
+    @if (_projeto != null)
+    {
+        <div class="row g-2 mb-3">
+            <div class="col">
+                <div class="card text-center border-0 shadow-sm"><div class="card-body py-3">
+                    <div class="fs-3 fw-bold">@_total</div><div class="small text-muted">Total</div>
+                </div></div>
+            </div>
+            <div class="col">
+                <div class="card text-center border-0 shadow-sm"><div class="card-body py-3">
+                    <div class="fs-3 fw-bold text-success">@_impressas</div><div class="small text-muted">Impressas</div>
+                </div></div>
+            </div>
+            <div class="col">
+                <div class="card text-center border-0 shadow-sm"><div class="card-body py-3">
+                    <div class="fs-3 fw-bold text-secondary">@_naoImpressas</div><div class="small text-muted">Não impressas</div>
+                </div></div>
+            </div>
+        </div>
+
+        <div class="border rounded bg-white" style="max-height:360px;overflow:auto">
+            <table class="table table-sm table-striped mb-0">
+                <thead class="sticky-top bg-light">
+                    <tr><th>Sequência</th><th>Status</th><th>Impressa em</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in _amostra)
+                    {
+                        <tr>
+                            <td class="font-monospace">@t.NumeroSequencia</td>
+                            <td>
+                                @switch (t.Status)
+                                {
+                                    case StatusTag.Impressa: <span class="badge bg-success">Impressa</span> break;
+                                    case StatusTag.Erro: <span class="badge bg-danger">Erro</span> break;
+                                    default: <span class="badge bg-secondary">Não impressa</span> break;
+                                }
+                            </td>
+                            <td class="small text-muted">@(t.DataImpressao?.ToLocalTime().ToString("dd/MM HH:mm") ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="small text-muted mt-1">Mostrando @_amostra.Count de @_total tags (amostra).</div>
+    }
+</div>
+
+@code {
+    private List<Projeto> _projetos = [];
+    private int _projetoId;
+    private Projeto? _projeto;
+    private int _total, _impressas, _naoImpressas;
+    private List<TagRegistro> _amostra = [];
+    private string? _erro;
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            _projetos = db.GetProjetos();
+        }
+        catch (Exception ex)
+        {
+            _erro = "Falha ao conectar no banco: " + ex.Message;
+        }
+    }
+
+    private void Carregar()
+    {
+        _erro = null;
+        if (_projetoId == 0) { _projeto = null; return; }
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            _projeto = db.GetProjeto(_projetoId);
+            var tags = db.GetTagsDoProjeto(_projetoId);
+            _total = tags.Count;
+            _impressas = tags.Count(t => t.Status == StatusTag.Impressa);
+            _naoImpressas = _total - _impressas;
+            _amostra = tags.Take(300).ToList();
+        }
+        catch (Exception ex)
+        {
+            _erro = "Falha ao carregar tags: " + ex.Message;
+        }
+    }
+}
