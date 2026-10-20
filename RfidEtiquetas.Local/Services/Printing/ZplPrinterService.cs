@@ -59,7 +59,9 @@ public class ZplPrinterService : IPrinterService
         EstacaoImpressora estacao,
         int intervaloMs = 1000,
         Action<int>? onProgresso = null,
-        CancellationToken cancelamento = default)
+        CancellationToken cancelamento = default,
+        Func<bool>? pausado = null,
+        OpcoesRfidLock? lockRfid = null)
     {
         var perfil = PrinterProfile.Para(estacao.ModeloImpressora);
 
@@ -77,8 +79,9 @@ public class ZplPrinterService : IPrinterService
                 using var stream = cliente.GetStream();
                 foreach (var item in itens)
                 {
+                    AguardarSePausado(pausado, cancelamento);
                     cancelamento.ThrowIfCancellationRequested();
-                    var zpl = _zplBuilder.Montar(template, item.CodigoBarras, item.DadoRfid, perfil, out _);
+                    var zpl = _zplBuilder.Montar(template, item.CodigoBarras, item.DadoRfid, perfil, out _, lockRfid);
                     var bytes = Encoding.ASCII.GetBytes(zpl);
                     stream.Write(bytes, 0, bytes.Length);
                     stream.Flush();
@@ -97,8 +100,9 @@ public class ZplPrinterService : IPrinterService
                 porta.Open();
                 foreach (var item in itens)
                 {
+                    AguardarSePausado(pausado, cancelamento);
                     cancelamento.ThrowIfCancellationRequested();
-                    var zpl = _zplBuilder.Montar(template, item.CodigoBarras, item.DadoRfid, perfil, out _);
+                    var zpl = _zplBuilder.Montar(template, item.CodigoBarras, item.DadoRfid, perfil, out _, lockRfid);
                     var bytes = Encoding.ASCII.GetBytes(zpl);
                     porta.Write(bytes, 0, bytes.Length);
                     feitos++;
@@ -117,6 +121,17 @@ public class ZplPrinterService : IPrinterService
         catch (Exception ex)
         {
             return new(false, feitos, itens.Count, ex.Message);
+        }
+    }
+
+    // Enquanto o usuário mantém a impressão pausada, segura o laço (sem enviar
+    // etiquetas) checando o cancelamento a cada 200ms.
+    private static void AguardarSePausado(Func<bool>? pausado, CancellationToken cancelamento)
+    {
+        while (pausado?.Invoke() == true)
+        {
+            cancelamento.ThrowIfCancellationRequested();
+            Thread.Sleep(200);
         }
     }
 

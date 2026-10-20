@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using System.Text;
 using RfidEtiquetas.Shared.Data.Models;
 
@@ -17,7 +19,7 @@ public class ZplBuilder
         _rfidEncoder = rfidEncoder;
     }
 
-    public string Montar(Etiqueta t, string codBarras, string dadoRfid, PrinterProfile perfil, out string? avisoRfid)
+    public string Montar(Etiqueta t, string codBarras, string dadoRfid, PrinterProfile perfil, out string? avisoRfid, OpcoesRfidLock? lockRfid = null)
     {
         avisoRfid = null;
         var sb = new StringBuilder();
@@ -40,6 +42,13 @@ public class ZplBuilder
 
             int words = t.RfidTamanhoBits / 16;
             sb.Append(perfil.MontarComandoRfidWrite(words, result.HexData));
+
+            // === Proteção (senha + lock) do chip — opcional, por job ===
+            // Vem DEPOIS da gravação do EPC e no MESMO formato de etiqueta (a tag
+            // só passa uma vez sob a antena). Se o chip não suportar senha, a
+            // impressora emite VOID nessa etiqueta e segue para a próxima.
+            if (lockRfid is not null && !string.IsNullOrWhiteSpace(lockRfid.SenhaAcesso))
+                sb.Append(MontarBlocoLockRfid(lockRfid));
         }
 
         // === Valor do RFID impresso como texto ===
@@ -99,6 +108,36 @@ public class ZplBuilder
         sb.Append("^XZ");
 
         return sb.ToString();
+    }
+
+    // Monta o bloco ZPL de senha + trava (EPC Gen2):
+    //   ^RFW,H,P^FD<acesso>,<kill>^FS  -> grava a(s) senha(s) no banco Reserved
+    //   ^RFW,H,,,A^FD<acesso>^FS       -> informa a senha de acesso para o lock
+    //   ^RLM,k,a,e                     -> trava kill / acesso / EPC (L=destravável, P=permanente)
+    private static string MontarBlocoLockRfid(OpcoesRfidLock o)
+    {
+        string acc = NormalizarSenha(o.SenhaAcesso);
+        string? kill = string.IsNullOrWhiteSpace(o.SenhaKill) ? null : NormalizarSenha(o.SenhaKill!);
+
+        var sb = new StringBuilder();
+        sb.Append(kill is null ? $"^RFW,H,P^FD{acc}^FS" : $"^RFW,H,P^FD{acc},{kill}^FS");
+        sb.Append($"^RFW,H,,,A^FD{acc}^FS");
+
+        string trava = o.Permanente ? "P" : "L";
+        string k = o.TravarKill ? trava : "U";       // U = deixa destravado (no-op em tag nova)
+        string a = trava;                            // protege a própria senha de acesso
+        string e = o.TravarAlteracao ? trava : "U";
+        sb.Append($"^RLM,{k},{a},{e}");
+        return sb.ToString();
+    }
+
+    // Garante 8 caracteres hexadecimais (32 bits). Remove o que não for hex,
+    // completa com zeros à esquerda e corta no tamanho.
+    private static string NormalizarSenha(string s)
+    {
+        var hex = new string((s ?? "").Where(Uri.IsHexDigit).ToArray()).ToUpperInvariant();
+        if (hex.Length > 8) hex = hex[..8];
+        return hex.PadLeft(8, '0');
     }
 
     private static void AppendTexto(StringBuilder sb, string texto, int x, int y, int tam)

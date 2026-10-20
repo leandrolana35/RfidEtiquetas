@@ -307,9 +307,27 @@
                                         @(_selecionadas.Count > 0 ? (_progresso * 100 / _selecionadas.Count) : 0)%
                                     </div>
                                 </div>
-                                <button class="btn btn-outline-danger btn-sm w-100 mt-1" @onclick="CancelarImpressao">
-                                    <i class="bi bi-x-circle me-1"></i>Cancelar impressão
-                                </button>
+                                <div class="d-flex gap-1 mt-1">
+                                    @if (_pausado)
+                                    {
+                                        <button class="btn btn-success btn-sm flex-fill" @onclick="RetomarImpressao">
+                                            <i class="bi bi-play-fill me-1"></i>Retomar
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-outline-warning btn-sm flex-fill" @onclick="PausarImpressao">
+                                            <i class="bi bi-pause-fill me-1"></i>Pausar
+                                        </button>
+                                    }
+                                    <button class="btn btn-outline-danger btn-sm flex-fill" @onclick="CancelarImpressao">
+                                        <i class="bi bi-x-circle me-1"></i>Cancelar
+                                    </button>
+                                </div>
+                                @if (_pausado)
+                                {
+                                    <div class="small text-warning mt-1"><i class="bi bi-pause-circle me-1"></i>Pausado — nenhuma etiqueta sendo enviada.</div>
+                                }
                             </div>
                         }
 
@@ -321,7 +339,60 @@
                             </div>
                         </div>
 
-                        <button class="btn btn-warning w-100" @onclick="ImprimirSelecionadas" disabled="@(_selecionadas.Count == 0 || _estacao == null || _imprimindo)">
+                        <div class="card border-warning-subtle mb-2">
+                            <div class="card-body py-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="lockAtivo"
+                                           @bind="_lockAtivo" disabled="@_imprimindo" />
+                                    <label class="form-check-label small fw-semibold" for="lockAtivo">
+                                        <i class="bi bi-shield-lock me-1"></i>Proteger o chip com senha (lock)
+                                    </label>
+                                </div>
+                                @if (_lockAtivo)
+                                {
+                                    <div class="mt-2">
+                                        <label class="form-label small mb-1">Senha de acesso / liberação de gravação (8 hex)</label>
+                                        <input class="form-control form-control-sm font-monospace" maxlength="8"
+                                               placeholder="ex.: 1A2B3C4D" @bind="_senhaAcesso" disabled="@_imprimindo" />
+
+                                        <div class="row g-2 mt-1">
+                                            <div class="col-6 form-check ms-2">
+                                                <input class="form-check-input" type="checkbox" id="lkAlt" @bind="_lockAlteracao" disabled="@_imprimindo" />
+                                                <label class="form-check-label small" for="lkAlt">Travar alteração (EPC)</label>
+                                            </div>
+                                            <div class="col-5 form-check">
+                                                <input class="form-check-input" type="checkbox" id="lkKill" @bind="_lockKill" disabled="@_imprimindo" />
+                                                <label class="form-check-label small" for="lkKill">Travar kill</label>
+                                            </div>
+                                        </div>
+
+                                        @if (_lockKill)
+                                        {
+                                            <div class="mt-1">
+                                                <label class="form-label small mb-1">Senha de kill (8 hex, opcional)</label>
+                                                <input class="form-control form-control-sm font-monospace" maxlength="8"
+                                                       placeholder="ex.: 88887777" @bind="_senhaKill" disabled="@_imprimindo" />
+                                            </div>
+                                        }
+
+                                        <div class="form-check mt-2 ms-2">
+                                            <input class="form-check-input" type="checkbox" id="lkPerm" @bind="_lockPermanente" disabled="@_imprimindo" />
+                                            <label class="form-check-label small text-danger" for="lkPerm">
+                                                Permanente (irreversível — não dá mais pra destravar)
+                                            </label>
+                                        </div>
+
+                                        <div class="small text-muted mt-1">
+                                            <i class="bi bi-info-circle me-1"></i>Se o chip não aceitar senha (ex.: alguns UCODE),
+                                            a impressora emite <b>VOID</b> nessa etiqueta e <b>segue</b> — o lote não trava.
+                                            <b>Teste sempre 1 tag antes.</b>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <button class="btn btn-warning w-100" @onclick="ImprimirSelecionadas" disabled="@(_selecionadas.Count == 0 || _estacao == null || _imprimindo || !LockValido)">
                             @if (_imprimindo)
                             {
                                 <span class="spinner-border spinner-border-sm me-2"></span>
@@ -333,6 +404,10 @@
                                 <span>Imprimir/regravar @_selecionadas.Count selecionadas</span>
                             }
                         </button>
+                        @if (_lockAtivo && !LockValido)
+                        {
+                            <div class="small text-danger mt-1">A senha de acesso deve ter 8 caracteres hex (0-9, A-F) e não pode ser 00000000.</div>
+                        }
 
                         @if (!string.IsNullOrEmpty(_resultado))
                         {
@@ -393,9 +468,27 @@
                                         @(_lista.Count > 0 ? (_progresso * 100 / _lista.Count) : 0)%
                                     </div>
                                 </div>
-                                <button class="btn btn-outline-danger btn-sm w-100 mt-1" @onclick="CancelarImpressao">
-                                    <i class="bi bi-x-circle me-1"></i>Cancelar impressão
-                                </button>
+                                <div class="d-flex gap-1 mt-1">
+                                    @if (_pausado)
+                                    {
+                                        <button class="btn btn-success btn-sm flex-fill" @onclick="RetomarImpressao">
+                                            <i class="bi bi-play-fill me-1"></i>Retomar
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-outline-warning btn-sm flex-fill" @onclick="PausarImpressao">
+                                            <i class="bi bi-pause-fill me-1"></i>Pausar
+                                        </button>
+                                    }
+                                    <button class="btn btn-outline-danger btn-sm flex-fill" @onclick="CancelarImpressao">
+                                        <i class="bi bi-x-circle me-1"></i>Cancelar
+                                    </button>
+                                </div>
+                                @if (_pausado)
+                                {
+                                    <div class="small text-warning mt-1"><i class="bi bi-pause-circle me-1"></i>Pausado — nenhuma etiqueta sendo enviada.</div>
+                                }
                             </div>
                         }
 
@@ -528,9 +621,41 @@
     private string _resultado = "";
     private bool _resultadoErro;
     private CancellationTokenSource? _cts;
+    private volatile bool _pausado;
+
+    // Proteção (lock) RFID — opcional, por job
+    private bool _lockAtivo;
+    private string _senhaAcesso = "";
+    private string _senhaKill = "";
+    private bool _lockAlteracao = true;
+    private bool _lockKill;
+    private bool _lockPermanente;
+
+    // Senha de acesso: 8 hex e diferente de 00000000 (exigência do lock Gen2)
+    private bool LockValido
+    {
+        get
+        {
+            if (!_lockAtivo) return true;
+            var s = (_senhaAcesso ?? "").Trim();
+            if (s.Length != 8 || !s.All(Uri.IsHexDigit)) return false;
+            return !s.All(c => c == '0');
+        }
+    }
+
+    private OpcoesRfidLock? MontarLock()
+        => _lockAtivo && LockValido
+            ? new OpcoesRfidLock(_senhaAcesso.Trim(),
+                                 _lockKill && !string.IsNullOrWhiteSpace(_senhaKill) ? _senhaKill.Trim() : null,
+                                 _lockAlteracao, _lockKill, _lockPermanente)
+            : null;
+
+    private void PausarImpressao() => _pausado = true;
+    private void RetomarImpressao() => _pausado = false;
 
     private void CancelarImpressao()
     {
+        _pausado = false;                     // garante que o laço saia da espera e veja o cancelamento
         _cts?.Cancel();                       // para de enviar novas etiquetas
         if (_estacao != null)
             Printer.CancelarImpressora(_estacao);  // limpa o buffer da impressora (~JA)
@@ -697,6 +822,7 @@
         if (modelo == null || _lista.Count == 0 || _estacao == null) return;
 
         _imprimindo = true;
+        _pausado = false;
         _progresso = 0;
         _resultado = "";
         _cts = new CancellationTokenSource();
@@ -705,21 +831,26 @@
         var itens = _lista.Select(c => (CodigoBarras: c, DadoRfid: c)).ToList();
         var estacao = _estacao;
         var token = _cts.Token;
+        var lockRfid = MontarLock();
 
         var resultado = await Task.Run(() =>
             Printer.ImprimirLote(modelo, itens, estacao, _intervalo, feitos =>
             {
                 _progresso = feitos;
                 InvokeAsync(StateHasChanged);
-            }, token));
+            }, token, () => _pausado, lockRfid));
 
         _imprimindo = false;
+        _pausado = false;
         _resultadoErro = !resultado.Sucesso && !resultado.Cancelado;
         _resultado = resultado.Cancelado
             ? $"Cancelado pelo usuário após {resultado.Impressos} de {resultado.Total} etiquetas."
             : resultado.Sucesso
                 ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
                 : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
+
+        if (lockRfid is not null)
+            _resultado += " ⚠️ Proteção (lock) com senha estava ativa: confira na impressora se alguma etiqueta saiu como VOID — chips sem suporte a senha saem VOID e NÃO foram travados.";
     }
 
     private async Task ImprimirSelecionadas()
@@ -729,6 +860,7 @@
         if (selecionadas.Count == 0) return;
 
         _imprimindo = true;
+        _pausado = false;
         _progresso = 0;
         _resultado = "";
         _cts = new CancellationTokenSource();
@@ -738,21 +870,26 @@
         var estacao = _estacao;
         var modelo = _modelo;
         var token = _cts.Token;
+        var lockRfid = MontarLock();
 
         var resultado = await Task.Run(() =>
             Printer.ImprimirLote(modelo, itens, estacao, _intervalo, feitos =>
             {
                 _progresso = feitos;
                 InvokeAsync(StateHasChanged);
-            }, token));
+            }, token, () => _pausado, lockRfid));
 
         _imprimindo = false;
+        _pausado = false;
         _resultadoErro = !resultado.Sucesso && !resultado.Cancelado;
         _resultado = resultado.Cancelado
             ? $"Cancelado pelo usuário após {resultado.Impressos} de {resultado.Total} etiquetas."
             : resultado.Sucesso
                 ? $"Concluído! {resultado.Impressos} etiquetas enviadas com sucesso."
                 : $"Erro após {resultado.Impressos} de {resultado.Total}: {resultado.Erro}";
+
+        if (lockRfid is not null)
+            _resultado += " ⚠️ Proteção (lock) com senha estava ativa: confira na impressora se alguma etiqueta saiu como VOID — chips sem suporte a senha saem VOID e NÃO foram travados.";
 
         // O lote para no primeiro erro (ou no cancelamento) — os primeiros N
         // (na mesma ordem enviada) tiveram sucesso e já saíram fisicamente da impressora.
