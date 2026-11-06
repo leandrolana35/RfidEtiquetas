@@ -10,7 +10,14 @@ using RfidEtiquetas.Shared.Services;
 using RfidEtiquetas.Shared.Services.Auth;
 using RfidEtiquetas.Shared.Services.Printing;
 
-var builder = WebApplication.CreateBuilder(args);
+// ContentRootPath fixo na pasta do executável — garante que appsettings.json e wwwroot
+// sejam encontrados mesmo quando o .exe é aberto com outra pasta de trabalho (modo janela).
+// Como Serviço, o UseWindowsService já faz isso; aqui vale para os dois modos.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory
+});
 
 // Permite rodar como Serviço do Windows de verdade (sc.exe create) — sem isso
 // o processo não entende o protocolo de start/stop do Service Control Manager
