@@ -84,6 +84,29 @@
                             </div>
                         </div>
                     }
+
+                    <hr class="my-2" />
+                    <label class="form-label small fw-semibold">Texto do corpo (bloco com quebra automática)</label>
+                    <textarea class="form-control" rows="6" @bind="_modelo.TextoCorpo"
+                              placeholder="Texto longo do rótulo. Cada linha digitada vira um parágrafo; o que não couber na largura quebra sozinho."></textarea>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-3">
+                            <label class="form-label small">X (dots)</label>
+                            <input type="number" class="form-control" @bind="_modelo.TextoCorpoX" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Y (dots)</label>
+                            <input type="number" class="form-control" @bind="_modelo.TextoCorpoY" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Tamanho fonte</label>
+                            <input type="number" class="form-control" @bind="_modelo.TextoCorpoTam" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Largura (dots)</label>
+                            <input type="number" class="form-control" @bind="_modelo.TextoCorpoLargura" />
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

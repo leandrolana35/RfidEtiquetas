@@ -63,6 +63,16 @@ public class ZplBuilder
         AppendTexto(sb, t.Texto3, t.Texto3X, t.Texto3Y, t.Texto3Tam);
         AppendTexto(sb, t.Texto4, t.Texto4X, t.Texto4Y, t.Texto4Tam);
 
+        // === Texto longo (bloco com quebra automática de linha) ===
+        if (!string.IsNullOrWhiteSpace(t.TextoCorpo))
+        {
+            var normal = t.TextoCorpo.Replace("\r\n", "\n").Replace("\r", "\n");
+            // cada linha digitada = um parágrafo (\& é quebra de linha dentro do ^FB)
+            var corpo = string.Join("\\&", normal.Split('\n').Select(EscaparZpl));
+            int larg = t.TextoCorpoLargura > 0 ? t.TextoCorpoLargura : 760;
+            sb.Append($"^FO{t.TextoCorpoX},{t.TextoCorpoY}^A0N,{t.TextoCorpoTam},{t.TextoCorpoTam}^FB{larg},60,3,L^FD{corpo}^FS");
+        }
+
         // === Código de barras ===
         if (t.BarImprimir && !string.IsNullOrWhiteSpace(codBarras))
         {
@@ -95,10 +105,15 @@ public class ZplBuilder
             sb.Append(t.BarTipo == 4 ? $"^FDLA,{dados}^FS" : $"^FD{dados}^FS");
         }
 
-        // === Logo (imagem .GRF previamente carregada na impressora) ===
+        // === Logo ===
         if (t.LogoImprimir && !string.IsNullOrWhiteSpace(t.LogoArquivo))
         {
-            sb.Append($"^FO{t.LogoX},{t.LogoY}^XG{t.LogoArquivo},1,1^FS");
+            // Se LogoArquivo já for um comando gráfico embutido (^GFA...), emite direto.
+            // Senão, trata como nome de .GRF previamente carregada na impressora (^XG).
+            if (t.LogoArquivo.TrimStart().StartsWith("^GF"))
+                sb.Append($"^FO{t.LogoX},{t.LogoY}{t.LogoArquivo}^FS");
+            else
+                sb.Append($"^FO{t.LogoX},{t.LogoY}^XG{t.LogoArquivo},1,1^FS");
         }
 
         // Ponto de registro (1 dot) — garante que a etiqueta seja processada/alimentada

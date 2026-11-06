@@ -96,4 +96,32 @@ app.MapBlazorHub();
 app.MapRazorPages();
 app.MapFallbackToPage("/_Host");
 
-app.Run();
+// Como Serviço do Windows (ou sem interface interativa): roda headless, como sempre.
+// Como .exe aberto pelo usuário: sobe o servidor e abre a JANELA do app (WebView2),
+// sem console visível e sem navegador externo — vira um aplicativo cliente-servidor.
+bool comoServico = Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService();
+
+if (comoServico || !Environment.UserInteractive)
+{
+    app.Run();
+}
+else
+{
+    await app.StartAsync();
+
+    var urlAbrir = (builder.Configuration["urls"] ?? "http://localhost:5090").Split(';', ',')[0].Trim();
+
+    // A UI do WinForms/WebView2 precisa de um thread STA próprio.
+    var uiThread = new Thread(() =>
+    {
+        System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.SystemAware);
+        System.Windows.Forms.Application.EnableVisualStyles();
+        System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+        System.Windows.Forms.Application.Run(new RfidEtiquetas.Local.ShellForm(urlAbrir));
+    });
+    uiThread.SetApartmentState(ApartmentState.STA);
+    uiThread.Start();
+    uiThread.Join();   // bloqueia até o usuário fechar a janela
+
+    await app.StopAsync();   // ao fechar a janela, derruba o servidor junto
+}

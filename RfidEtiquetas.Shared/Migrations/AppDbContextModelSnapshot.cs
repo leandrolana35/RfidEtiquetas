@@ -366,6 +366,22 @@ namespace RfidEtiquetas.Shared.Migrations
                     b.Property<int>("Texto4Y")
                         .HasColumnType("integer");
 
+                    b.Property<string>("TextoCorpo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TextoCorpoLargura")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TextoCorpoTam")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TextoCorpoX")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TextoCorpoY")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Velocidade")
                         .HasColumnType("integer");
 

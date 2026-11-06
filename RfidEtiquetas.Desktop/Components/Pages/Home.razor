@@ -1,10 +1,15 @@
 @inject IDbContextFactory<AppDbContext> DbFactory
 
-<div class="container py-3">
-    <div class="d-flex align-items-center mb-2">
-        <h4 class="mb-0"><i class="bi bi-printer me-2"></i>AFIXPrint — Desktop</h4>
-        <span class="badge bg-success ms-2">app nativo (POC)</span>
+<div class="afix-topbar px-4 py-3 d-flex align-items-center shadow-sm">
+    <i class="bi bi-printer fs-3 me-2"></i>
+    <div>
+        <div class="fs-5 fw-semibold lh-1">AFIXPrint <span class="fw-normal opacity-75">Desktop</span></div>
+        <div class="small opacity-75">Estação de impressão — aplicação nativa</div>
     </div>
+    <span class="badge bg-light text-dark ms-auto">POC</span>
+</div>
+
+<div class="container py-4" style="max-width:860px">
     <p class="text-muted small">
         Aplicação Windows nativa (WPF + BlazorWebView). Os componentes Blazor rodam
         <b>no próprio processo</b> — sem navegador e sem servidor/SignalR (por isso não existe o

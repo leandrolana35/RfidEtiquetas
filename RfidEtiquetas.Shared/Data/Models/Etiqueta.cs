@@ -36,6 +36,15 @@ public class Etiqueta
     public int Texto4Y { get; set; }
     public int Texto4Tam { get; set; } = 12;
 
+    // Texto longo (bloco com quebra automática de linha) — para etiquetas com
+    // muito texto (ex.: rótulos de produto). Renderizado com ^FB.
+    // Cada linha digitada vira um parágrafo; o ^FB quebra o que não couber na largura.
+    public string TextoCorpo { get; set; } = "";
+    public int TextoCorpoX { get; set; }
+    public int TextoCorpoY { get; set; }
+    public int TextoCorpoTam { get; set; } = 18;
+    public int TextoCorpoLargura { get; set; } = 760; // largura do bloco em dots
+
     // Barcode
     public int BarTipo { get; set; } = 1;     // 1=Code128 2=EAN13 3=Code39 4=QR
     public int BarCodX { get; set; }
