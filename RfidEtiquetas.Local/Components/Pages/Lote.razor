@@ -205,6 +205,52 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    <details class="mb-3">
+                        <summary class="small fw-semibold text-primary" style="cursor:pointer">
+                            <i class="bi bi-upload me-1"></i>Importar dados de impressão/gravação (marcar por arquivo)
+                        </summary>
+                        <div class="border rounded p-2 mt-2 bg-light">
+                            <p class="small text-muted mb-2">
+                                Suba um arquivo (CSV / Excel / TXT) com os <b>números de sequência</b> que já foram
+                                impressos/gravados (ex.: fora do sistema). As tags deste projeto serão marcadas.
+                            </p>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-5">
+                                    <label class="form-label small">Arquivo (.csv, .xlsx, .txt)</label>
+                                    <InputFile class="form-control form-control-sm" OnChange="CarregarArquivoImport"
+                                               accept=".csv,.xlsx,.xls,.txt" disabled="@_importando" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small">Coluna (0 = 1ª)</label>
+                                    <input type="number" class="form-control form-control-sm" @bind="_impColuna" min="0" disabled="@_importando" />
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-check mt-4">
+                                        <input class="form-check-input" type="checkbox" @bind="_impCabecalho" id="impCab" disabled="@_importando" />
+                                        <label class="form-check-label small" for="impCab">Tem cabeçalho</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small">Marcar como</label>
+                                    <select class="form-select form-select-sm" @bind="_impStatus" disabled="@_importando">
+                                        <option value="1">Impressa</option>
+                                        <option value="2">Erro</option>
+                                        <option value="0">Não impressa</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-primary mt-2" @onclick="ImportarMarcacoes"
+                                    disabled="@(_importArquivo == null || _importando)">
+                                @if (_importando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-check2-square me-1"></i>Importar e marcar
+                            </button>
+                            @if (!string.IsNullOrEmpty(_impMsg))
+                            {
+                                <div class="alert @(_impErro ? "alert-danger" : "alert-success") py-1 px-2 mt-2 mb-0 small">@_impMsg</div>
+                            }
+                        </div>
+                    </details>
+
                     @{
                         var filtradas = TagsFiltradas().ToList();
                         var totalPaginas = Math.Max(1, (int)Math.Ceiling(filtradas.Count / (double)_exibirQtd));
@@ -588,6 +634,67 @@
     private int _exibirQtd = 300;
     private int _pagina;
     private bool _ordemDesc;
+
+    // Importar dados de impressão/gravação (marcar tags por arquivo)
+    private int _impColuna;
+    private bool _impCabecalho;
+    private int _impStatus = 1; // 1=Impressa
+    private byte[]? _importArquivo;
+    private string _importArquivoNome = "";
+    private bool _importando;
+    private string _impMsg = "";
+    private bool _impErro;
+
+    private async Task CarregarArquivoImport(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            _importArquivoNome = e.File.Name;
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024).CopyToAsync(ms);
+            _importArquivo = ms.ToArray();
+            _impErro = false;
+            _impMsg = $"Arquivo \"{_importArquivoNome}\" pronto. Clique em \"Importar e marcar\".";
+        }
+        catch (Exception ex) { _impErro = true; _impMsg = "Erro ao ler arquivo: " + ex.Message; }
+    }
+
+    private void ImportarMarcacoes()
+    {
+        if (_projeto == null || _importArquivo == null) return;
+        _importando = true; _impMsg = ""; StateHasChanged();
+        try
+        {
+            using var ms = new MemoryStream(_importArquivo);
+            bool xlsx = _importArquivoNome.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase)
+                     || _importArquivoNome.EndsWith(".xls", StringComparison.OrdinalIgnoreCase);
+            var valores = xlsx
+                ? LoteSvc.LerColunaExcel(ms, _impColuna, _impCabecalho)
+                : LoteSvc.LerColunaCsv(ms, _impColuna, _impCabecalho);
+
+            var seqs = new List<long>();
+            foreach (var v in valores)
+            {
+                var somenteDigitos = new string((v ?? "").Where(char.IsDigit).ToArray());
+                if (long.TryParse(somenteDigitos, out var n)) seqs.Add(n);
+            }
+            if (seqs.Count == 0)
+            {
+                _impErro = true;
+                _impMsg = "Nenhuma sequência válida encontrada na coluna indicada. Confira a coluna e o cabeçalho.";
+                return;
+            }
+
+            var status = (StatusTag)_impStatus;
+            int marcadas = Db.MarcarPorSequencia(_projeto.Id, seqs, status, _estacao?.Id);
+            Db.ChangeTracker.Clear();
+            _todasTags = Db.GetTagsDoProjeto(_projeto.Id);
+            _impErro = false;
+            _impMsg = $"{marcadas} tag(s) marcada(s) como \"{status}\" (de {seqs.Count} sequência(s) lida(s) do arquivo).";
+        }
+        catch (Exception ex) { _impErro = true; _impMsg = "Erro: " + ex.Message; }
+        finally { _importando = false; }
+    }
 
     private int _modo; // 0 = sequência, 1 = arquivo
 

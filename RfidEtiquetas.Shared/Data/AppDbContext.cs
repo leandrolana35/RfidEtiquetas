@@ -281,6 +281,32 @@ public class AppDbContext : IdentityUserContext<Usuario, int>
         SaveChanges();
     }
 
+    // Marca em lote as tags de um projeto pelos números de sequência informados
+    // (ex.: importar de arquivo quais foram impressas/gravadas fora do sistema).
+    // Retorna quantas foram efetivamente atualizadas. Processa em blocos para não
+    // estourar o IN do SQL. Usa ExecuteUpdate (não carrega as entidades).
+    public int MarcarPorSequencia(int projetoId, IReadOnlyCollection<long> sequencias, StatusTag status, int? estacaoId)
+    {
+        int total = 0;
+        var agora = DateTime.UtcNow;
+        foreach (var bloco in sequencias.Distinct().Chunk(2000))
+        {
+            var set = bloco.ToHashSet();
+            var q = TagRegistros.IgnoreQueryFilters()
+                .Where(t => t.ProjetoId == projetoId && set.Contains(t.NumeroSequencia));
+
+            total += status == StatusTag.Impressa
+                ? q.ExecuteUpdate(s => s
+                    .SetProperty(t => t.Status, status)
+                    .SetProperty(t => t.EstacaoId, estacaoId)
+                    .SetProperty(t => t.DataImpressao, agora))
+                : q.ExecuteUpdate(s => s
+                    .SetProperty(t => t.Status, status)
+                    .SetProperty(t => t.EstacaoId, estacaoId));
+        }
+        return total;
+    }
+
     public (int Total, int Impressas, int NaoImpressas, int Erros) GetResumoTags(int projetoId)
     {
         var grupos = TagRegistros.Where(t => t.ProjetoId == projetoId)
